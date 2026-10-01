@@ -8,8 +8,25 @@ import { emptySession } from '../shared/types';
 
 type Screen = 'hero' | 'chat' | 'results';
 
+const COACH_KEY = 'klar-coach-dismissed';
+
 const EXAMPLE =
   'Я выбираю поставщика. Есть цена, срок поставки, процент брака и минимальная партия. По цене точно сказать не могу — примерно 450–500 рублей. Цена и срок для меня наиболее важны, но насколько именно — не знаю.';
+
+const COACH_TIPS = [
+  {
+    title: 'Расскажите о выборе',
+    body: 'Что решаете и что для вас важно? Можно своими словами, без таблиц.',
+  },
+  {
+    title: 'Неточность — нормально',
+    body: '«Примерно», интервалы и «не уверен» — Klar это учитывает.',
+  },
+  {
+    title: 'Сравним спокойно',
+    body: 'Покажем, какой вариант чаще выигрывает, даже если данные размыты.',
+  },
+] as const;
 
 /** Same-origin `/api/*` on Vercel (no absolute base URL needed). */
 async function postJson<T>(url: string, body: unknown): Promise<T> {
@@ -51,12 +68,33 @@ function Atmosphere() {
 
 function TypingDots() {
   return (
-    <div className="bubble assistant typing" aria-live="polite" aria-label="Агент печатает">
+    <div className="bubble assistant typing" aria-live="polite" aria-label="Klar печатает">
       <span className="dot" />
       <span className="dot" />
       <span className="dot" />
     </div>
   );
+}
+
+function TipHint({ label, text }: { label: string; text: string }) {
+  return (
+    <span className="tip-wrap">
+      <button type="button" className="tip-btn" aria-label={`Подсказка: ${label}`}>
+        ?
+      </button>
+      <span className="tip-bubble" role="tooltip">
+        {text}
+      </span>
+    </span>
+  );
+}
+
+function readCoachDismissed(): boolean {
+  try {
+    return localStorage.getItem(COACH_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
 export default function App() {
@@ -69,6 +107,8 @@ export default function App() {
   const [canAnalyze, setCanAnalyze] = useState(false);
   const [analysis, setAnalysis] = useState<McdmResult | null>(null);
   const [explanation, setExplanation] = useState('');
+  const [coachOpen, setCoachOpen] = useState(() => !readCoachDismissed());
+  const [coachStep, setCoachStep] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -92,6 +132,18 @@ export default function App() {
     el.style.height = 'auto';
     el.style.height = `${Math.min(Math.max(el.scrollHeight, 36), 112)}px`;
   }, [draft]);
+
+  function dismissCoach(forever: boolean) {
+    setCoachOpen(false);
+    setCoachStep(0);
+    if (forever) {
+      try {
+        localStorage.setItem(COACH_KEY, '1');
+      } catch {
+        /* ignore */
+      }
+    }
+  }
 
   async function send(text: string) {
     const trimmed = text.trim();
@@ -149,13 +201,13 @@ export default function App() {
       setOfferDemo(false);
       setMessages((m) => [
         ...m,
-        { role: 'user', content: 'Использовать демо-поставщиков' },
+        { role: 'user', content: 'Подставить демо-варианты' },
         { role: 'assistant', content: data.reply },
       ]);
     } catch {
       setMessages((m) => [
         ...m,
-        { role: 'assistant', content: 'Не удалось загрузить демо.' },
+        { role: 'assistant', content: 'Не удалось загрузить демо. Попробуйте ещё раз.' },
       ]);
     } finally {
       setBusy(false);
@@ -173,7 +225,7 @@ export default function App() {
       setExplanation(data.explanation);
       setScreen('results');
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Ошибка анализа';
+      const msg = e instanceof Error ? e.message : 'Не удалось сравнить варианты';
       setMessages((m) => [...m, { role: 'assistant', content: msg }]);
     } finally {
       setBusy(false);
@@ -181,12 +233,13 @@ export default function App() {
   }
 
   function start() {
+    setCoachOpen(false);
     setScreen('chat');
     setMessages([
       {
         role: 'assistant',
         content:
-          'Опишите решение своими словами: критерии, важность, альтернативы. Можно с интервалами и «примерно».',
+          'Расскажите о выборе своими словами: что важно, какие есть варианты. Можно «примерно» и с интервалами — так даже удобнее.',
       },
     ]);
   }
@@ -201,42 +254,112 @@ export default function App() {
     setOfferDemo(false);
     setDraft('');
     setBusy(false);
+    if (!readCoachDismissed()) setCoachOpen(true);
   }
+
+  const coachCard = coachOpen && (
+    <div className="coach-scrim" role="dialog" aria-modal="true" aria-labelledby="coach-title">
+      <div className="coach-sheet glass sheet">
+        <p className="coach-kicker caption" id="coach-title">
+          Как устроен Klar
+        </p>
+        <div className="coach-steps" aria-hidden>
+          {COACH_TIPS.map((_, i) => (
+            <i key={i} className={i === coachStep ? 'on' : undefined} />
+          ))}
+        </div>
+        <h2 className="coach-title">{COACH_TIPS[coachStep].title}</h2>
+        <p className="coach-body body">{COACH_TIPS[coachStep].body}</p>
+        <div className="coach-actions">
+          {coachStep < COACH_TIPS.length - 1 ? (
+            <button
+              type="button"
+              className="btn-primary glass-cta"
+              onClick={() => setCoachStep((s) => s + 1)}
+            >
+              Дальше
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn-primary glass-cta"
+              onClick={() => dismissCoach(false)}
+            >
+              Понятно
+            </button>
+          )}
+          <button
+            type="button"
+            className="coach-link"
+            onClick={() => dismissCoach(true)}
+          >
+            Больше не показывать
+          </button>
+          <button
+            type="button"
+            className="coach-link subtle"
+            onClick={() => dismissCoach(false)}
+          >
+            Закрыть
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   if (screen === 'hero') {
     return (
       <div className="ios-root">
         <Atmosphere />
         <div className="ios-shell hero-shell">
-          <header className="nav-bar glass">
-            <div className="nav-brand">Опора</div>
-            <span className="nav-meta caption">СППР</span>
+          <header className="nav-bar glass nav-welcome" aria-label="Klar">
+            <div className="nav-side leading">
+              <button
+                type="button"
+                className="nav-help"
+                onClick={() => {
+                  setCoachStep(0);
+                  setCoachOpen(true);
+                }}
+                aria-label="Как пользоваться"
+              >
+                ?
+              </button>
+            </div>
+            <div className="nav-side trailing">
+              <span className="status-chip">СППР</span>
+            </div>
           </header>
           <main className="hero-body">
-            <h1 className="large-title">Опора</h1>
-            <p className="hero-sub body">
-              Нечёткий выбор в диалоге — устойчивое ранжирование с учётом
-              неопределённости.
-            </p>
-            <ul className="inset-group hero-group glass sheet">
-              <li>
-                <span className="row-label">Диалог с агентом</span>
-                <span className="row-value caption">критерии и важность</span>
-              </li>
-              <li>
-                <span className="row-label">Демо или свои варианты</span>
-                <span className="row-value caption">альтернативы</span>
-              </li>
-              <li>
-                <span className="row-label">Робастный MCDM</span>
-                <span className="row-value caption">win rate</span>
-              </li>
-            </ul>
-            <button type="button" className="btn-primary glass-cta" onClick={start}>
-              Начать диалог
-            </button>
+            <div className="hero-copy">
+              <h1 className="large-title">Klar</h1>
+              <p className="hero-sub body">
+                Поможем выбрать спокойно, даже если цифры неточные и важность
+                «на глаз».
+              </p>
+            </div>
+            <div className="hero-bottom">
+              <ol className="inset-group hero-group glass sheet steps-list">
+                <li>
+                  <span className="step-n">1</span>
+                  <span className="row-label">Расскажите о выборе</span>
+                </li>
+                <li>
+                  <span className="step-n">2</span>
+                  <span className="row-label">Добавьте варианты</span>
+                </li>
+                <li>
+                  <span className="step-n">3</span>
+                  <span className="row-label">Сравним устойчиво</span>
+                </li>
+              </ol>
+              <button type="button" className="btn-primary glass-cta" onClick={start}>
+                Начать
+              </button>
+            </div>
           </main>
         </div>
+        {coachCard}
       </div>
     );
   }
@@ -244,29 +367,49 @@ export default function App() {
   if (screen === 'results' && analysis) {
     const contextLabel =
       session.context?.trim() ||
-      (session.usedDemoData ? 'Выбор поставщика' : 'Решение');
+      (session.usedDemoData ? 'Выбор поставщика' : 'Ваш выбор');
+    const leader = analysis.ranking[0];
 
     return (
       <div className="ios-root">
         <Atmosphere />
         <div className="ios-shell results-shell">
-          <header className="nav-bar glass">
-            <button
-              type="button"
-              className="nav-back"
-              onClick={() => setScreen('chat')}
-            >
-              ‹ Диалог
-            </button>
-            <div className="nav-brand center">Опора</div>
-            <span className="nav-meta spacer" aria-hidden />
+          <header className="nav-bar glass nav-compact">
+            <div className="nav-side leading">
+              <button
+                type="button"
+                className="nav-back"
+                onClick={() => setScreen('chat')}
+              >
+                ‹ Диалог
+              </button>
+            </div>
+            <div className="nav-title">Klar</div>
+            <div className="nav-side trailing" aria-hidden />
           </header>
 
           <div className="results-scroll">
-            <h1 className="large-title compact">Ранжирование</h1>
+            <h1 className="large-title compact">Итог сравнения</h1>
             <p className="section-foot caption">
-              {contextLabel} · {analysis.samples} симуляций
-              {session.usedDemoData ? ' · демо' : ''}
+              {contextLabel}
+              {session.usedDemoData ? ' · демо-варианты' : ''}
+            </p>
+
+            {leader && (
+              <p className="leader-plain body">
+                Чаще всего выигрывает <strong>{leader.name}</strong> — примерно в{' '}
+                {(leader.winRate * 100).toFixed(0)}% проверок. Это не «гарантия»,
+                а насколько вариант устойчив, когда данные и важность чуть
+                меняются.
+              </p>
+            )}
+
+            <p className="section-label caption">
+              Как часто побеждает
+              <TipHint
+                label="Как часто побеждает"
+                text="Мы много раз «переигрываем» сравнение со слегка разными цифрами. Процент — доля раз, когда вариант оказался лучшим."
+              />
             </p>
 
             <ol className="inset-group rank-group glass sheet">
@@ -277,18 +420,17 @@ export default function App() {
                     <div className="rank-top">
                       <span className="rank-name">{r.name}</span>
                       <span className="rank-pct caption">
-                        {(r.winRate * 100).toFixed(0)}%
+                        {(r.winRate * 100).toFixed(0)}% раз
                       </span>
                     </div>
                     <div
                       className="rank-bar"
-                      title={`балл ${r.expectedScore.toFixed(3)}`}
+                      title={`Обычный балл ${r.expectedScore.toFixed(3)}`}
                     >
                       <i style={{ width: `${Math.max(3, r.winRate * 100)}%` }} />
                     </div>
                     <div className="rank-meta caption">
-                      ср. ранг {r.meanRank.toFixed(2)} · балл{' '}
-                      {r.expectedScore.toFixed(3)}
+                      обычно на месте ≈{r.meanRank.toFixed(1)}
                     </div>
                   </div>
                 </li>
@@ -298,13 +440,13 @@ export default function App() {
             <p className="footnote body">{analysis.sensitivityNote}</p>
             {explanation && (
               <>
-                <p className="section-label caption">Пояснение</p>
+                <p className="section-label caption">Простыми словами</p>
                 <p className="footnote explain body">{explanation}</p>
               </>
             )}
 
             <button type="button" className="btn-secondary glass" onClick={resetAll}>
-              Новое решение
+              Новый выбор
             </button>
           </div>
         </div>
@@ -312,22 +454,47 @@ export default function App() {
     );
   }
 
+  const missingFriendly = session.missing
+    .map((m) => {
+      const low = m.toLowerCase();
+      if (low.includes('альтернатив') || low.includes('вариант')) return 'варианты на выбор';
+      if (low.includes('критер')) return 'что для вас важно';
+      if (low.includes('вес') || low.includes('важност')) return 'насколько важно каждое условие';
+      return m;
+    })
+    .join(', ');
+
   return (
     <div className="ios-root">
       <Atmosphere />
       <div className="ios-shell chat-shell">
-        <header className="nav-bar glass">
-          <div className="nav-brand">Опора</div>
-          <span className={`nav-meta caption${busy ? ' busy' : ''}`}>
-            {busy ? 'Думаю…' : 'Агент'}
-          </span>
+        <header className="nav-bar glass nav-compact">
+          <div className="nav-side leading">
+            <span className="nav-title">Klar</span>
+          </div>
+          <div className="nav-side trailing">
+            <button
+              type="button"
+              className="nav-help"
+              onClick={() => {
+                setCoachStep(0);
+                setCoachOpen(true);
+              }}
+              aria-label="Подсказки"
+            >
+              ?
+            </button>
+            <span className={`status-chip${busy ? ' busy' : ''}`}>
+              {busy ? 'Думаю…' : 'Agent'}
+            </span>
+          </div>
         </header>
 
         {showSessionMeta && (
-          <div className="meta-strip" aria-label="Состояние сессии">
+          <div className="meta-strip" aria-label="Что уже поняли">
             {(session.context?.trim() ||
-              (session.criteria.length > 0 ? 'Решение' : '')) && (
-              <span>{session.context?.trim() || 'Решение'}</span>
+              (session.criteria.length > 0 ? 'Ваш выбор' : '')) && (
+              <span>{session.context?.trim() || 'Ваш выбор'}</span>
             )}
             {session.criteria.map((c) => (
               <span key={c.id}>
@@ -347,7 +514,7 @@ export default function App() {
 
         {session.missing.length > 0 && !canAnalyze && (
           <p className="clarify" role="status">
-            Уточните: {session.missing.join(', ')}
+            Чтобы продолжить, расскажите ещё про: {missingFriendly}.
           </p>
         )}
 
@@ -364,7 +531,7 @@ export default function App() {
         <footer className="composer-dock glass">
           {offerDemo && !session.usedDemoData && (
             <div className="action-row glass sheet">
-              <p className="body">Подставить демо-поставщиков?</p>
+              <p className="body">Нет своих вариантов? Подставим демо.</p>
               <button type="button" disabled={busy} onClick={loadDemo}>
                 Демо
               </button>
@@ -378,7 +545,7 @@ export default function App() {
               disabled={busy}
               onClick={analyze}
             >
-              Запустить анализ
+              Сравнить варианты
             </button>
           )}
 
@@ -390,12 +557,12 @@ export default function App() {
                   disabled={busy}
                   onClick={() => send(EXAMPLE)}
                 >
-                  Пример про поставщика
+                  Пример: поставщик
                 </button>
               )}
               {showDemoChip && !offerDemo && (
                 <button type="button" disabled={busy} onClick={loadDemo}>
-                  Демо-поставщики
+                  Демо-варианты
                 </button>
               )}
             </div>
@@ -412,7 +579,7 @@ export default function App() {
               ref={textareaRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="Сообщение"
+              placeholder="Опишите выбор своими словами…"
               rows={1}
               enterKeyHint="send"
               onKeyDown={(e) => {
@@ -433,6 +600,7 @@ export default function App() {
           </form>
         </footer>
       </div>
+      {coachCard}
     </div>
   );
 }

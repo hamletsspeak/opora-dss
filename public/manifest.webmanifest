@@ -1,6 +1,6 @@
 {
-  "name": "Опора — СППР",
-  "short_name": "Опора",
+  "name": "Klar — СППР",
+  "short_name": "Klar",
   "description": "Интеллектуальная поддержка решений: LLM + робастный MCDM",
   "start_url": "/",
   "display": "standalone",
