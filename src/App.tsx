@@ -155,18 +155,24 @@ function AppHeader({
   leading,
   trailing,
   className = '',
+  compact = false,
 }: {
   leading?: ReactNode;
   trailing?: ReactNode;
   className?: string;
+  /** Sheet / overlay: no safe-area top padding */
+  compact?: boolean;
 }) {
   return (
-    <header className={`nav-bar nav-island-bar ${className}`.trim()} aria-label="Klar">
-      <div className="nav-side leading">{leading}</div>
-      <div className="nav-island glass">
+    <header
+      className={`nav-bar nav-island-bar${compact ? ' nav-in-sheet' : ''} ${className}`.trim()}
+      aria-label="Klar"
+    >
+      <div className="nav-side leading">{leading ?? <span className="nav-slot" />}</div>
+      <div className="nav-island">
         <BrandMark size="sm" />
       </div>
-      <div className="nav-side trailing">{trailing ?? null}</div>
+      <div className="nav-side trailing">{trailing ?? <span className="nav-slot" />}</div>
     </header>
   );
 }
@@ -192,8 +198,14 @@ export default function App() {
   const [coachOpen, setCoachOpen] = useState(false);
   const [coachStep, setCoachStep] = useState(0);
   const [introReady, setIntroReady] = useState(false);
+  /** Auto-coach once per welcome visit (QA: no reopen after dismiss) */
+  const [coachAutoShown, setCoachAutoShown] = useState(false);
+  /** Bumps on home reset so welcome remounts with current layout/animations */
+  const [welcomeKey, setWelcomeKey] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const coachSheetRef = useRef<HTMLDivElement>(null);
+  const coachRestoreFocus = useRef<HTMLElement | null>(null);
 
   const hasUserMessage = messages.some((m) => m.role === 'user');
   const showExample = !hasUserMessage && !session.usedDemoData;
@@ -220,13 +232,62 @@ export default function App() {
     if (screen !== 'hero') return;
     if (readCoachDismissed()) return;
     if (!introReady) return;
-    const t = window.setTimeout(() => setCoachOpen(true), 380);
+    if (coachAutoShown) return;
+    const t = window.setTimeout(() => {
+      setCoachOpen(true);
+      setCoachAutoShown(true);
+    }, 380);
     return () => window.clearTimeout(t);
-  }, [screen, introReady]);
+  }, [screen, introReady, coachAutoShown]);
+
+  useEffect(() => {
+    if (!coachOpen) return;
+    coachRestoreFocus.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const sheet = coachSheetRef.current;
+    const focusables = () =>
+      sheet
+        ? Array.from(
+            sheet.querySelectorAll<HTMLElement>(
+              'button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])',
+            ),
+          ).filter((el) => !el.hasAttribute('disabled'))
+        : [];
+    const list = focusables();
+    list[0]?.focus();
+
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        dismissCoach(false);
+        return;
+      }
+      if (e.key !== 'Tab' || !sheet) return;
+      const items = focusables();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      coachRestoreFocus.current?.focus?.();
+    };
+  }, [coachOpen]);
 
   function dismissCoach(forever: boolean) {
     setCoachOpen(false);
     setCoachStep(0);
+    setCoachAutoShown(true);
     if (forever) {
       try {
         localStorage.setItem(COACH_KEY, '1');
@@ -336,7 +397,6 @@ export default function App() {
   }
 
   function resetAll() {
-    setScreen('hero');
     setMessages([]);
     setSession(emptySession());
     setAnalysis(null);
@@ -345,17 +405,55 @@ export default function App() {
     setOfferDemo(false);
     setDraft('');
     setBusy(false);
+    // QA blocker: never open coach immediately — wait for typewriter / useEffect
     setCoachOpen(false);
     setCoachStep(0);
-    // Let hero typewriter finish, then useEffect opens coach (if not dismissed)
+    setCoachAutoShown(false);
     setIntroReady(false);
+    setWelcomeKey((k) => k + 1);
+    setScreen('hero');
   }
 
+  const helpBtn = (
+    <button
+      type="button"
+      className="nav-help"
+      onClick={() => {
+        setCoachStep(0);
+        setCoachOpen(true);
+        setCoachAutoShown(true);
+      }}
+      aria-label="Подсказки"
+    >
+      ?
+    </button>
+  );
+
+  const homeBtn = (
+    <button
+      type="button"
+      className="nav-home"
+      onClick={resetAll}
+      aria-label="На главную"
+    >
+      Домой
+    </button>
+  );
+
   const coachCard = coachOpen && (
-    <div className="coach-scrim" role="dialog" aria-modal="true" aria-labelledby="coach-title">
-      <div className="coach-sheet glass sheet">
+    <div
+      className="coach-scrim"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="coach-title"
+    >
+      <div
+        className="coach-sheet glass sheet reveal-item d0"
+        ref={coachSheetRef}
+      >
+        <AppHeader compact className="coach-header" />
         <p className="coach-kicker caption" id="coach-title">
-          Как устроен Klar
+          Как это работает
         </p>
         <div className="coach-steps" aria-hidden>
           {COACH_TIPS.map((_, i) => (
@@ -403,28 +501,14 @@ export default function App() {
 
   if (screen === 'hero') {
     return (
-      <div className="ios-root">
+      <div className="ios-root" key={`welcome-${welcomeKey}`}>
         <Atmosphere />
         <div className="ios-shell hero-shell">
-          <AppHeader
-            className="reveal-item d0"
-            leading={
-              <button
-                type="button"
-                className="nav-help"
-                onClick={() => {
-                  setCoachStep(0);
-                  setCoachOpen(true);
-                }}
-                aria-label="Как пользоваться"
-              >
-                ?
-              </button>
-            }
-          />
+          <AppHeader className="reveal-item d0" leading={helpBtn} />
           <main className="hero-body">
             <div className="hero-copy">
               <Typewriter
+                key={`tw-${welcomeKey}`}
                 text={HERO_LINE}
                 className="hero-sub body reveal-item d1"
                 onDone={() => setIntroReady(true)}
@@ -471,6 +555,7 @@ export default function App() {
         <Atmosphere />
         <div className="ios-shell results-shell">
           <AppHeader
+            className="reveal-item d0"
             leading={
               <button
                 type="button"
@@ -483,14 +568,14 @@ export default function App() {
           />
 
           <div className="results-scroll">
-            <h1 className="large-title compact">Итог сравнения</h1>
-            <p className="section-foot caption">
+            <h1 className="large-title compact reveal-item d1">Итог сравнения</h1>
+            <p className="section-foot caption reveal-item d1">
               {contextLabel}
               {session.usedDemoData ? ' · демо-варианты' : ''}
             </p>
 
             {leader && (
-              <p className="leader-plain body">
+              <p className="leader-plain body reveal-item d2">
                 Чаще всего выигрывает <strong>{leader.name}</strong> — примерно в{' '}
                 {(leader.winRate * 100).toFixed(0)}% проверок. Это не «гарантия»,
                 а насколько вариант устойчив, когда данные и важность чуть
@@ -498,7 +583,7 @@ export default function App() {
               </p>
             )}
 
-            <p className="section-label caption">
+            <p className="section-label caption reveal-item d2">
               Как часто побеждает
               <TipHint
                 label="Как часто побеждает"
@@ -506,7 +591,7 @@ export default function App() {
               />
             </p>
 
-            <ol className="inset-group rank-group glass sheet">
+            <ol className="inset-group rank-group glass sheet reveal-item d3">
               {analysis.ranking.map((r, i) => (
                 <li key={r.alternativeId} className={i === 0 ? 'is-lead' : undefined}>
                   <span className="rank-n">{i + 1}</span>
@@ -531,15 +616,19 @@ export default function App() {
               ))}
             </ol>
 
-            <p className="footnote body">{analysis.sensitivityNote}</p>
+            <p className="footnote body reveal-item d4">{analysis.sensitivityNote}</p>
             {explanation && (
               <>
-                <p className="section-label caption">Простыми словами</p>
-                <p className="footnote explain body">{explanation}</p>
+                <p className="section-label caption reveal-item d4">Простыми словами</p>
+                <p className="footnote explain body reveal-item d4">{explanation}</p>
               </>
             )}
 
-            <button type="button" className="btn-secondary glass" onClick={resetAll}>
+            <button
+              type="button"
+              className="btn-secondary glass reveal-item d4"
+              onClick={resetAll}
+            >
               Новый выбор
             </button>
           </div>
@@ -563,28 +652,20 @@ export default function App() {
       <Atmosphere />
       <div className="ios-shell chat-shell">
         <AppHeader
-          leading={
-            <button
-              type="button"
-              className="nav-help"
-              onClick={() => {
-                setCoachStep(0);
-                setCoachOpen(true);
-              }}
-              aria-label="Подсказки"
-            >
-              ?
-            </button>
-          }
+          className="reveal-item d0"
+          leading={helpBtn}
           trailing={
-            <span className={`status-chip${busy ? ' busy' : ''}`}>
-              {busy ? 'Думаю…' : 'Agent'}
-            </span>
+            <>
+              {homeBtn}
+              <span className={`status-chip${busy ? ' busy' : ''}`}>
+                {busy ? 'Думаю…' : 'Agent'}
+              </span>
+            </>
           }
         />
 
         {showSessionMeta && (
-          <div className="meta-strip" aria-label="Что уже поняли">
+          <div className="meta-strip reveal-item d1" aria-label="Что уже поняли">
             {(session.context?.trim() ||
               (session.criteria.length > 0 ? 'Ваш выбор' : '')) && (
               <span>{session.context?.trim() || 'Ваш выбор'}</span>
@@ -606,12 +687,12 @@ export default function App() {
         )}
 
         {session.missing.length > 0 && !canAnalyze && (
-          <p className="clarify" role="status">
+          <p className="clarify reveal-item d1" role="status">
             Чтобы продолжить, расскажите ещё про: {missingFriendly}.
           </p>
         )}
 
-        <div className="messages" role="log" aria-live="polite">
+        <div className="messages reveal-item d2" role="log" aria-live="polite">
           {messages.map((m, i) => (
             <div key={i} className={`bubble ${m.role}`}>
               {m.content}
@@ -621,7 +702,7 @@ export default function App() {
           <div ref={bottomRef} />
         </div>
 
-        <footer className="composer-dock glass">
+        <footer className="composer-dock glass reveal-item d3">
           {offerDemo && !session.usedDemoData && (
             <div className="action-row glass sheet">
               <p className="body">Нет своих вариантов? Подставим демо.</p>

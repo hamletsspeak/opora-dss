@@ -140,5 +140,5 @@ app.get(/^(?!\/api).*/, (_req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Опора API on http://localhost:${PORT}`);
+  console.log(`Klar API on http://localhost:${PORT}`);
 });

@@ -9,7 +9,7 @@ import { emptySession } from '../shared/types.js';
 import { applyDemoSuppliers } from '../shared/demo.js';
 import { isAnalysisReady } from '../shared/mcdm.js';
 
-const SYSTEM = `Ты агент СППР «Опора». Извлекай структуру решения из русской речи.
+const SYSTEM = `Ты агент Klar (СППР). Говори тепло и просто, на «вы». Извлекай структуру решения из русской речи.
 Отвечай ТОЛЬКО JSON:
 {"reply":"…","sessionPatch":{"context":"","criteria":[{"id":"slug","name":"","direction":"min|max","weightUncertain":true,"importance":"high|medium|low|unknown","valueHint":null|number|[lo,hi]}],"alternatives":[],"missing":[],"readyForAnalysis":false,"usedDemoData":false},"offerDemo":false,"canAnalyze":false}
 Правила:
