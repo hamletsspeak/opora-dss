@@ -60,7 +60,6 @@ export default function App() {
   const [explanation, setExplanation] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const messagesRef = useRef<HTMLDivElement>(null);
 
   const hasUserMessage = messages.some((m) => m.role === 'user');
   const showExample = !hasUserMessage && !session.usedDemoData;
@@ -68,16 +67,19 @@ export default function App() {
     !session.usedDemoData &&
     (offerDemo || session.criteria.length >= 2) &&
     !canAnalyze;
+  const showSessionMeta =
+    session.criteria.length > 0 || session.alternatives.length > 0;
 
   useEffect(() => {
+    if (screen !== 'chat') return;
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, busy, screen, offerDemo, canAnalyze]);
 
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
-    el.style.height = '0px';
-    el.style.height = `${Math.min(el.scrollHeight, 132)}px`;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, 36), 112)}px`;
   }, [draft]);
 
   async function send(text: string) {
@@ -192,135 +194,150 @@ export default function App() {
 
   if (screen === 'hero') {
     return (
-      <>
-        <div className="app-bg" aria-hidden />
-        <div className="shell hero-shell">
-          <section className="hero">
-            <p className="hero-kicker">СППР · LLM + робастный MCDM</p>
-            <h1 className="brand">Опора</h1>
-            <p className="hero-lead">
-              Соберите нечёткий выбор в диалоге — получите устойчивое ранжирование
-              с учётом неопределённости.
+      <div className="ios-root">
+        <div className="ios-shell hero-shell">
+          <header className="nav-bar">
+            <div className="nav-brand">Опора</div>
+            <span className="nav-meta">СППР</span>
+          </header>
+          <main className="hero-body">
+            <h1 className="large-title">Опора</h1>
+            <p className="hero-sub">
+              Нечёткий выбор в диалоге — устойчивое ранжирование с учётом
+              неопределённости.
             </p>
-            <button type="button" className="cta" onClick={start}>
+            <ul className="inset-group hero-group">
+              <li>
+                <span className="row-label">Диалог с агентом</span>
+                <span className="row-value">критерии и важность</span>
+              </li>
+              <li>
+                <span className="row-label">Демо или свои варианты</span>
+                <span className="row-value">альтернативы</span>
+              </li>
+              <li>
+                <span className="row-label">Робастный MCDM</span>
+                <span className="row-value">win rate</span>
+              </li>
+            </ul>
+            <button type="button" className="btn-primary" onClick={start}>
               Начать диалог
             </button>
-          </section>
+          </main>
         </div>
-      </>
+      </div>
     );
   }
 
   if (screen === 'results' && analysis) {
+    const contextLabel =
+      session.context?.trim() ||
+      (session.usedDemoData ? 'Выбор поставщика' : 'Решение');
+
     return (
-      <>
-        <div className="app-bg" aria-hidden />
-        <div className="shell results">
-          <header className="topbar">
-            <div className="logo">Опора</div>
+      <div className="ios-root">
+        <div className="ios-shell results-shell">
+          <header className="nav-bar">
             <button
               type="button"
-              className="chip ghost"
+              className="nav-back"
               onClick={() => setScreen('chat')}
             >
-              ← к диалогу
+              ‹ Диалог
             </button>
+            <div className="nav-brand center">Опора</div>
+            <span className="nav-meta spacer" aria-hidden />
           </header>
-          <h1>Ранжирование</h1>
-          <p className="lead">
-            {session.context?.trim() ||
-              (session.usedDemoData ? 'Выбор поставщика' : 'Решение')}{' '}
-            · {analysis.samples} симуляций
-            {session.usedDemoData ? ' · демо-данные' : ''}
-          </p>
-          <ol className="rank-list">
-            {analysis.ranking.map((r, i) => (
-              <li
-                key={r.alternativeId}
-                className={`rank-item${i === 0 ? ' leader' : ''}`}
-                style={{ animationDelay: `${0.06 * i}s` }}
-              >
-                <span className="n">{i + 1}</span>
-                <div>
-                  <div className="meta">
-                    <span className="name">{r.name}</span>
-                    <span className="pct">{(r.winRate * 100).toFixed(0)}% побед</span>
+
+          <div className="results-scroll">
+            <h1 className="large-title compact">Ранжирование</h1>
+            <p className="section-foot">
+              {contextLabel} · {analysis.samples} симуляций
+              {session.usedDemoData ? ' · демо' : ''}
+            </p>
+
+            <ol className="inset-group rank-group">
+              {analysis.ranking.map((r, i) => (
+                <li key={r.alternativeId} className={i === 0 ? 'is-lead' : undefined}>
+                  <span className="rank-n">{i + 1}</span>
+                  <div className="rank-body">
+                    <div className="rank-top">
+                      <span className="rank-name">{r.name}</span>
+                      <span className="rank-pct">
+                        {(r.winRate * 100).toFixed(0)}%
+                      </span>
+                    </div>
+                    <div
+                      className="rank-bar"
+                      title={`балл ${r.expectedScore.toFixed(3)}`}
+                    >
+                      <i style={{ width: `${Math.max(3, r.winRate * 100)}%` }} />
+                    </div>
+                    <div className="rank-meta">
+                      ср. ранг {r.meanRank.toFixed(2)} · балл{' '}
+                      {r.expectedScore.toFixed(3)}
+                    </div>
                   </div>
-                  <div
-                    className="bar"
-                    title={`Ожидаемый балл ${r.expectedScore.toFixed(3)}`}
-                  >
-                    <i style={{ width: `${Math.max(4, r.winRate * 100)}%` }} />
-                  </div>
-                  <div className="rank-stats">
-                    ср. ранг {r.meanRank.toFixed(2)} · балл{' '}
-                    {r.expectedScore.toFixed(3)}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ol>
-          <p className="note">{analysis.sensitivityNote}</p>
-          {explanation && (
-            <section className="explain-block">
-              <h2>Пояснение</h2>
-              <p className="explain">{explanation}</p>
-            </section>
-          )}
-          <div className="results-actions">
-            <button type="button" className="cta secondary" onClick={resetAll}>
+                </li>
+              ))}
+            </ol>
+
+            <p className="footnote">{analysis.sensitivityNote}</p>
+            {explanation && (
+              <>
+                <p className="section-label">Пояснение</p>
+                <p className="footnote explain">{explanation}</p>
+              </>
+            )}
+
+            <button type="button" className="btn-secondary" onClick={resetAll}>
               Новое решение
             </button>
           </div>
         </div>
-      </>
+      </div>
     );
   }
 
   return (
-    <>
-      <div className="app-bg" aria-hidden />
-      <div className="shell chat-shell">
-        <header className="topbar">
-          <div className="logo">Опора</div>
-          <span className={`chip${busy ? ' busy' : ''}`}>
-            {busy ? 'думаю…' : 'агент + MCDM'}
+    <div className="ios-root">
+      <div className="ios-shell chat-shell">
+        <header className="nav-bar">
+          <div className="nav-brand">Опора</div>
+          <span className={`nav-meta${busy ? ' busy' : ''}`}>
+            {busy ? 'Думаю…' : 'Агент'}
           </span>
         </header>
 
-        {(session.criteria.length > 0 || session.alternatives.length > 0) && (
-          <div className="session-strip" aria-label="Состояние сессии">
+        {showSessionMeta && (
+          <div className="meta-strip" aria-label="Состояние сессии">
             {(session.context?.trim() ||
-              (session.criteria.length > 0 ? 'Решение в работе' : '')) && (
-              <span className="strip-ctx">
-                {session.context?.trim() || 'Решение в работе'}
-              </span>
+              (session.criteria.length > 0 ? 'Решение' : '')) && (
+              <span>{session.context?.trim() || 'Решение'}</span>
             )}
             {session.criteria.map((c) => (
-              <span key={c.id} className="strip-crit">
+              <span key={c.id}>
                 {c.name}
                 {c.importance === 'high' ? ' ★' : ''}
                 {c.weightUncertain ? ' ±' : ''}
                 {Array.isArray(c.valueHint)
-                  ? ` [${c.valueHint[0]}–${c.valueHint[1]}]`
+                  ? ` ${c.valueHint[0]}–${c.valueHint[1]}`
                   : ''}
               </span>
             ))}
             {session.alternatives.map((a) => (
-              <span key={a.id} className="strip-alt">
-                {a.name}
-              </span>
+              <span key={a.id}>{a.name}</span>
             ))}
           </div>
         )}
 
         {session.missing.length > 0 && !canAnalyze && (
-          <p className="clarify-hint" role="status">
+          <p className="clarify" role="status">
             Уточните: {session.missing.join(', ')}
           </p>
         )}
 
-        <div className="messages" ref={messagesRef}>
+        <div className="messages" role="log" aria-live="polite">
           {messages.map((m, i) => (
             <div key={i} className={`bubble ${m.role}`}>
               {m.content}
@@ -330,12 +347,12 @@ export default function App() {
           <div ref={bottomRef} />
         </div>
 
-        <div className="dock">
+        <footer className="composer-dock">
           {offerDemo && !session.usedDemoData && (
-            <div className="demo-banner">
-              <p>Альтернатив пока нет — подставить демо-поставщиков?</p>
+            <div className="action-row">
+              <p>Подставить демо-поставщиков?</p>
               <button type="button" disabled={busy} onClick={loadDemo}>
-                Демо-поставщики
+                Демо
               </button>
             </div>
           )}
@@ -343,7 +360,7 @@ export default function App() {
           {canAnalyze && (
             <button
               type="button"
-              className="cta analyze"
+              className="btn-primary dock-cta"
               disabled={busy}
               onClick={analyze}
             >
@@ -352,7 +369,7 @@ export default function App() {
           )}
 
           {(showExample || showDemoChip) && (
-            <div className="quick">
+            <div className="quick-row">
               {showExample && (
                 <button
                   type="button"
@@ -381,7 +398,7 @@ export default function App() {
               ref={textareaRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder="Опишите выбор…"
+              placeholder="Сообщение"
               rows={1}
               enterKeyHint="send"
               onKeyDown={(e) => {
@@ -397,11 +414,11 @@ export default function App() {
               disabled={busy || !draft.trim()}
               aria-label="Отправить"
             >
-              →
+              ↑
             </button>
           </form>
-        </div>
+        </footer>
       </div>
-    </>
+    </div>
   );
 }
