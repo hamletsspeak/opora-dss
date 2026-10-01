@@ -2,16 +2,25 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SessionState } from '../shared/types.ts';
 import { runRobustMcdm, isAnalysisReady } from '../shared/mcdm.ts';
 import { explainResult } from '../server/agent.ts';
+import {
+  getApiKey,
+  getModel,
+  handleOptions,
+  methodNotAllowed,
+  parseBody,
+} from './_lib.ts';
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+export const config = { maxDuration: 60 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (handleOptions(req, res)) return;
   if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
+    methodNotAllowed(res, 'POST, OPTIONS');
     return;
   }
   try {
-    const session = req.body?.session as SessionState;
+    const body = parseBody<{ session?: SessionState }>(req);
+    const session = body.session;
     if (!session || !isAnalysisReady(session)) {
       res.status(400).json({
         error:
@@ -21,12 +30,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const analysis = runRobustMcdm(session, 2000, 42);
     let explanation = analysis.sensitivityNote;
-    const key = process.env.OPENAI_API_KEY;
+    const key = getApiKey();
     if (key) {
       try {
         explanation = await explainResult({
           apiKey: key,
-          model: MODEL,
+          model: getModel(),
           session,
           analysisJson: JSON.stringify({
             ranking: analysis.ranking.map((r) => ({

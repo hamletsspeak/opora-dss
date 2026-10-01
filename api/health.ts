@@ -1,11 +1,15 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { getApiKey, getModel, handleOptions } from './_lib.ts';
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+export const config = { maxDuration: 10 };
 
-export default function handler(_req: VercelRequest, res: VercelResponse) {
+export default function handler(req: VercelRequest, res: VercelResponse) {
+  if (handleOptions(req, res)) return;
+  // Touch env so hasKey reflects deployed secret without exposing it
+  getApiKey();
   res.status(200).json({
     ok: true,
-    model: MODEL,
+    model: getModel(),
     hasKey: Boolean(process.env.OPENAI_API_KEY),
   });
 }

@@ -88,7 +88,9 @@ function mergeSession(
   }
 
   return {
-    context: patch.context?.trim() ? patch.context : base.context,
+    context:
+      (patch.context?.trim() ? patch.context : base.context) ||
+      (/поставщик|выбор\s+постав/i.test(userText) ? 'Выбор поставщика' : ''),
     criteria,
     alternatives,
     missing: patch.missing ?? base.missing,

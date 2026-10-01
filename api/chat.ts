@@ -5,30 +5,43 @@ import {
   type SessionState,
 } from '../shared/types.ts';
 import { runAgentTurn } from '../server/agent.ts';
+import {
+  getApiKey,
+  getModel,
+  handleOptions,
+  methodNotAllowed,
+  parseBody,
+} from './_lib.ts';
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+export const config = { maxDuration: 60 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (handleOptions(req, res)) return;
   if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
+    methodNotAllowed(res, 'POST, OPTIONS');
     return;
   }
   try {
-    const key = process.env.OPENAI_API_KEY;
+    const key = getApiKey();
     if (!key) {
       res.status(500).json({ error: 'OPENAI_API_KEY не задан на сервере' });
       return;
     }
-    const userText = String(req.body?.message ?? '').trim();
+    const body = parseBody<{
+      message?: string;
+      messages?: ChatMessage[];
+      session?: SessionState;
+    }>(req);
+    const userText = String(body.message ?? '').trim();
     if (!userText) {
       res.status(400).json({ error: 'Пустое сообщение' });
       return;
     }
-    const messages = (req.body?.messages ?? []) as ChatMessage[];
-    const session = (req.body?.session as SessionState) || emptySession();
+    const messages = (body.messages ?? []) as ChatMessage[];
+    const session = body.session || emptySession();
     const turn = await runAgentTurn({
       apiKey: key,
-      model: MODEL,
+      model: getModel(),
       messages,
       session,
       userText,

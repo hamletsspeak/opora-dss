@@ -62,10 +62,13 @@ function sampleWeights(
   if (high.length && low.length) {
     for (const h of high) {
       for (const l of low) {
-        if (out[h.id] < out[l.id]) {
-          const mid = (out[h.id] + out[l.id]) / 2;
-          out[h.id] = mid + Math.abs(out[l.id] - out[h.id]) / 2;
-          out[l.id] = mid - Math.abs(out[l.id] - out[h.id]) / 2;
+        const hi = out[h.id];
+        const lo = out[l.id];
+        if (hi < lo) {
+          const mid = (hi + lo) / 2;
+          const half = Math.abs(lo - hi) / 2;
+          out[h.id] = mid + half;
+          out[l.id] = Math.max(1e-9, mid - half);
         }
       }
     }

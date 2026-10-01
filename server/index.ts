@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import fs from 'node:fs';
 import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
@@ -11,6 +12,13 @@ import { explainResult, runAgentTurn } from './agent.ts';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
 
+// Local secrets: project .env, then agent openai.env — never log values
+dotenv.config({ path: path.join(root, '.env') });
+if (!process.env.OPENAI_API_KEY) {
+  const agentEnv = '/cursor/stores/self/internal/openai.env';
+  if (fs.existsSync(agentEnv)) dotenv.config({ path: agentEnv });
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
@@ -20,7 +28,7 @@ const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 
 function requireKey(): string {
   const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error('OPENAI_API_KEY missing');
+  if (!key) throw new Error('OPENAI_API_KEY не задан на сервере');
   return key;
 }
 
@@ -34,6 +42,13 @@ app.get('/api/health', (_req, res) => {
 
 app.post('/api/chat', async (req, res) => {
   try {
+    let key: string;
+    try {
+      key = requireKey();
+    } catch {
+      res.status(500).json({ error: 'OPENAI_API_KEY не задан на сервере' });
+      return;
+    }
     const userText = String(req.body?.message ?? '').trim();
     if (!userText) {
       res.status(400).json({ error: 'Пустое сообщение' });
@@ -43,7 +58,7 @@ app.post('/api/chat', async (req, res) => {
     const session = (req.body?.session as SessionState) || emptySession();
 
     const turn = await runAgentTurn({
-      apiKey: requireKey(),
+      apiKey: key,
       model: MODEL,
       messages,
       session,
@@ -58,7 +73,12 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-app.post('/api/demo', (req, res) => {
+function demoHandler(req: express.Request, res: express.Response) {
+  if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
+    res.status(405).json({ error: 'Method not allowed', allow: 'POST' });
+    return;
+  }
   const session = (req.body?.session as SessionState) || emptySession();
   const next = applyDemoSuppliers(session);
   res.json({
@@ -66,7 +86,10 @@ app.post('/api/demo', (req, res) => {
     canAnalyze: isAnalysisReady(next),
     reply: 'Загружены демо-поставщики. Можно запускать анализ.',
   });
-});
+}
+
+app.post('/api/demo', demoHandler);
+app.get('/api/demo', demoHandler);
 
 app.post('/api/analyze', async (req, res) => {
   try {
