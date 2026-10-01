@@ -12,13 +12,37 @@ const EXAMPLE =
   'Я выбираю поставщика. Есть цена, срок поставки, процент брака и минимальная партия. По цене точно сказать не могу — примерно 450–500 рублей. Цена и срок для меня наиболее важны, но насколько именно — не знаю.';
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Ошибка запроса');
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error(
+      'Сеть: не удалось достучаться до /api. Проверьте деплой serverless-функций.',
+    );
+  }
+  const raw = await res.text();
+  let data: { error?: string } = {};
+  if (raw) {
+    try {
+      data = JSON.parse(raw) as { error?: string };
+    } catch {
+      if (raw.includes('FUNCTION_INVOCATION_FAILED')) {
+        throw new Error(
+          'API на Vercel упал при старте (FUNCTION_INVOCATION_FAILED). Нужен редеплой с исправлением serverless.',
+        );
+      }
+      throw new Error(
+        `Ответ API не JSON (HTTP ${res.status}). Маршрут /api может быть недоступен.`,
+      );
+    }
+  }
+  if (!res.ok) {
+    throw new Error(data.error || `Ошибка API (HTTP ${res.status})`);
+  }
   return data as T;
 }
 
@@ -90,13 +114,16 @@ export default function App() {
         ...nextMessages,
         { role: 'assistant', content: data.reply },
       ]);
-    } catch {
+    } catch (e) {
+      const msg =
+        e instanceof Error
+          ? e.message
+          : 'Не удалось связаться с агентом. Проверьте сервер и OPENAI_API_KEY.';
       setMessages([
         ...nextMessages,
         {
           role: 'assistant',
-          content:
-            'Не удалось связаться с агентом. Проверьте сервер и OPENAI_API_KEY.',
+          content: msg,
         },
       ]);
     } finally {
@@ -121,11 +148,9 @@ export default function App() {
         { role: 'user', content: 'Использовать демо-поставщиков' },
         { role: 'assistant', content: data.reply },
       ]);
-    } catch {
-      setMessages((m) => [
-        ...m,
-        { role: 'assistant', content: 'Не удалось загрузить демо.' },
-      ]);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Не удалось загрузить демо.';
+      setMessages((m) => [...m, { role: 'assistant', content: msg }]);
     } finally {
       setBusy(false);
     }

@@ -1,12 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { emptySession, type SessionState } from '../shared/types.ts';
-import { applyDemoSuppliers } from '../shared/demo.ts';
-import { isAnalysisReady } from '../shared/mcdm.ts';
+import { emptySession, type SessionState } from '../shared/types';
+import { applyDemoSuppliers } from '../shared/demo';
+import { isAnalysisReady } from '../shared/mcdm';
 import {
   handleOptions,
   methodNotAllowed,
   parseBody,
-} from './_lib.ts';
+} from './lib';
 
 export const config = { maxDuration: 60 };
 

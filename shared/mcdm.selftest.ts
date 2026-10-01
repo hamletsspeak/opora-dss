@@ -1,6 +1,6 @@
-import { applyDemoSuppliers } from './demo.ts';
-import { runRobustMcdm, isAnalysisReady } from './mcdm.ts';
-import { emptySession } from './types.ts';
+import { applyDemoSuppliers } from './demo';
+import { runRobustMcdm, isAnalysisReady } from './mcdm';
+import { emptySession } from './types';
 
 const s = applyDemoSuppliers(emptySession());
 if (!isAnalysisReady(s)) throw new Error('demo not ready');

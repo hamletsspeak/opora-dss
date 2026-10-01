@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getApiKey, getModel, handleOptions } from './_lib.ts';
+import { getApiKey, getModel, handleOptions } from './lib';
 
 export const config = { maxDuration: 10 };
 

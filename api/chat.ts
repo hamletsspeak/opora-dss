@@ -3,15 +3,15 @@ import {
   emptySession,
   type ChatMessage,
   type SessionState,
-} from '../shared/types.ts';
-import { runAgentTurn } from '../server/agent.ts';
+} from '../shared/types';
+import { runAgentTurn } from '../server/agent';
 import {
   getApiKey,
   getModel,
   handleOptions,
   methodNotAllowed,
   parseBody,
-} from './_lib.ts';
+} from './lib';
 
 export const config = { maxDuration: 60 };
 
@@ -47,7 +47,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       userText,
     });
     res.status(200).json(turn);
-  } catch {
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/401|incorrect api key|invalid_api_key|invalid api key/i.test(msg)) {
+      res.status(401).json({
+        error:
+          'OpenAI отклонил ключ (401). Проверьте OPENAI_API_KEY в Vercel Environment Variables.',
+      });
+      return;
+    }
+    console.error('[api/chat]', msg);
     res.status(500).json({ error: 'Ошибка агента' });
   }
 }
