@@ -1,86 +1,127 @@
-# Klar — СППР (MVP)
+# Klar — интеллектуальная СППР (MVP)
 
-Мобильный веб-MVP **Klar**: в диалоге собираем нечёткие критерии, затем устойчиво сравниваем варианты (Monte-Carlo / SMAA-lite + TOPSIS) с учётом интервалов и неопределённых весов.
+Документ для научного руководителя. Описание архитектуры и соответствия теме ВКР; инструкция по запуску — в конце.
 
-## Быстрый старт (локально)
+**Продукт:** Klar — мобильный веб-MVP системы поддержки принятия решений.  
+**Тема ВКР (дословно):** «Разработка интеллектуальной системы поддержки принятия решений на основе LLM-агента и робастного многокритериального анализа».
+
+| | |
+|---|---|
+| Репозиторий | https://github.com/hamletsspeak/opora-dss |
+| Демо (Vercel) | https://opora-dss.vercel.app |
+
+## 1. Постановка задачи
+
+В прикладных выборах (поставщик, подрядчик, конфигурация) ЛПР часто формулирует предпочтения **нечёткими** выражениями: интервалы («цена примерно 450–500»), качественная важность («цена и срок важны, но насколько — не знаю»), частично заданные оценки альтернатив. Классический MCDM требует точечных весов и оценок; «сырой» LLM склонен подменять расчёт генерацией.
+
+Klar разделяет роли:
+
+| Компонент | Роль |
+|-----------|------|
+| LLM-агент | Диалог, извлечение структуры сессии, пояснение уже посчитанных метрик |
+| Робастный MCDM (`runRobustMcdm`) | Детерминированное (при фиксированном seed) ранжирование в TypeScript **без** LLM |
+
+Итог для ЛПР — не «мнение модели», а **частота победы** альтернатив при неопределённости весов/оценок плюс краткое текстовое объяснение цифр.
+
+## 2. Архитектура потока данных
+
+1. **UI (React/Vite)** — welcome / чат / результаты; same-origin `POST /api/chat|demo|analyze`.  
+2. **LLM-агент** (`server/agent.ts`, `api/chat.ts`) — обновляет `SessionState` (контекст, критерии, альтернативы, пробелы).  
+3. **Сессия** — JSON-контракт (`shared/types.ts`); демо-альтернативы — `POST /api/demo`.  
+4. **Робастный MCDM** (`shared/mcdm.ts` ← `api/analyze.ts`) — `runRobustMcdm(session)` → ranking, `winRate`, чувствительность.  
+5. **LLM-объяснение** — только по уже полученным метрикам (ранг не пересчитывает).
+
+```mermaid
+sequenceDiagram
+  participant U as ЛПР (UI)
+  participant C as API /api/chat
+  participant A as LLM-агент
+  participant S as SessionState
+  participant D as API /api/demo
+  participant Z as API /api/analyze
+  participant M as runRobustMcdm (TS)
+  participant E as LLM explain
+
+  U->>C: сообщение + prior messages + session
+  C->>A: runAgentTurn
+  A->>S: sessionPatch (критерии, интервалы, важность)
+  A-->>U: reply, offerDemo, canAnalyze
+
+  opt демо-альтернативы
+    U->>D: session
+    D->>S: applyDemoSuppliers
+    D-->>U: session, canAnalyze
+  end
+
+  U->>Z: session
+  Z->>M: runRobustMcdm (Monte-Carlo + TOPSIS-like)
+  M-->>Z: ranking, winRate, sensitivity
+  Z->>E: объяснить метрики (без пересчёта)
+  E-->>U: analysis + explanation
+```
+
+Локально те же маршруты обслуживает Express (`server/index.ts`); на Vercel — serverless `api/*.ts`.
+
+## 3. Робастность в MVP
+
+Реализация в `shared/mcdm.ts` (SMAA-lite / Monte-Carlo + TOPSIS-подобное расстояние до идеала):
+
+1. **Выборки** — на каждой итерации семплируются веса (`weightUncertain` → priors по `importance`; точный вес фиксирован) и оценки (интервалы → семпл).  
+2. **Ранг на выборке** — нормализация min/max, TOPSIS-like score → порядок альтернатив.  
+3. **Агрегация** — `winRate` (доля выборок с 1-м местом), ожидаемый score / средний ранг.  
+4. **Чувствительность** — краткая оценка устойчивости лидера к вариации весов.
+
+LLM **не** семплирует и **не** задаёт итоговый порядок. Seed фиксируется для воспроизводимости.
+
+## 4. Ключевые файлы
+
+| Файл | Назначение |
+|------|------------|
+| `shared/mcdm.ts` | `runRobustMcdm`, готовность к анализу; самотест `mcdm.selftest.ts` |
+| `server/agent.ts` | Промпт, нормализация критериев, `runAgentTurn`, `explainResult` |
+| `api/chat.ts` | Serverless-диалог; ключ только `process.env.OPENAI_API_KEY` |
+| `api/analyze.ts` | MCDM + опциональное LLM-пояснение |
+| `shared/types.ts` | Контракт сессии / результата |
+| `src/App.tsx` | UI Klar; в chat — **prior** history + текущее `message` |
+
+## 5. Ограничения MVP
+
+- Нет аккаунтов и долговременного хранения сессий.  
+- Качество извлечения зависит от LLM (есть эвристический fallback).  
+- Демо-альтернативы — учебный сценарий, не каталог поставщиков.  
+- Нет полноценного PWA service worker.  
+- Источник истины по рангу — метрики MCDM; текст LLM лишь поясняет их.
+
+## 6. Соответствие теме ВКР
+
+Тема требует **и** LLM-агента, **и** робастного многокритериального анализа. Агент работает с нечётким естественным языком и объясняет результат; робастный анализ выполнен отдельным детерминированным модулем с явными метриками устойчивости (`winRate` / чувствительность). Разделение устраняет подмену расчёта генерацией и делает ядро метода проверяемым вне модели.
+
+---
+
+## Приложение. Запуск и деплой
+
+### Локально
 
 ```bash
 git clone https://github.com/hamletsspeak/opora-dss.git
-cd dss-opora
-cp .env.example .env
-# Впишите OPENAI_API_KEY в .env (не коммитьте)
-npm install
-npm run dev
+cd opora-dss
+cp .env.example .env   # OPENAI_API_KEY=
+npm install && npm run dev
 ```
 
-- UI: http://localhost:5173  
-- API (Express): http://localhost:8787  
-
-Продакшен локально: `npm run build && npm start`.
-
-## Переменные окружения
+- UI: http://localhost:5173 · API: http://localhost:8787 (`GET /api/health`)  
+- Прод локально: `npm run build && npm start`  
+- Самопроверка MCDM: `npm run test:mcdm`
 
 | Переменная | Обязательно | Описание |
 |---|---|---|
-| `OPENAI_API_KEY` | да | Ключ OpenAI (только сервер / Vercel env) |
+| `OPENAI_API_KEY` | да | Только сервер / Vercel env (**не** `VITE_*`) |
 | `OPENAI_MODEL` | нет | По умолчанию `gpt-4o-mini` |
-| `PORT` | нет | Порт локального Express (по умолчанию `8787`) |
+| `PORT` | нет | Express, по умолчанию `8787` |
 
-`.env` в `.gitignore`. Шаблон — `.env.example`.
+### Vercel
 
-## Деплой на Vercel
+Import репозитория → Framework Vite → Environment Variables: `OPENAI_API_KEY`, опц. `OPENAI_MODEL` → Deploy.  
+Статика `dist` + serverless `api/*` на одном домене.
 
-Проект готов к Vercel: статика Vite (`dist`) + serverless-функции в `/api` (`chat`, `demo`, `analyze`, `health`).
-
-1. Залейте репозиторий на GitHub.
-2. [vercel.com/new](https://vercel.com/new) → Import репозитория.
-3. Framework Preset: **Vite** (или оставьте авто из `vercel.json`).
-4. Environment Variables:
-   - `OPENAI_API_KEY` = ваш ключ  
-   - `OPENAI_MODEL` = `gpt-4o-mini` (опционально)
-5. Deploy.
-
-CLI:
-
-```bash
-npm i -g vercel
-vercel          # preview
-vercel --prod   # production
-# env: vercel env add OPENAI_API_KEY
-```
-
-После деплоя UI и `/api/*` на одном домене (без отдельного Express).
-
-## Архитектура
-
-Краткое описание для научного руководителя: **[docs/architecture.md](./docs/architecture.md)** (тема ВКР, поток UI→LLM→MCDM, Mermaid, ограничения MVP).
-
-```
-Браузер (React/Vite, RU UI)
-    │  POST /api/chat | /api/demo | /api/analyze
-    ▼
-Локально: Express (server/)     Прод/Vercel: api/*.ts (serverless)
-    │
-    ├── server/agent.ts  — LLM-извлечение структуры
-    └── shared/mcdm.ts   — робастный MCDM без LLM
-```
-
-**Поток:** чат → уточнения / демо → `runRobustMcdm` → ранжирование + LLM-объяснение по метрикам.
-
-## Пример фразы
-
-> Я выбираю поставщика. Есть цена, срок поставки, процент брака и минимальная партия. По цене точно сказать не могу — примерно 450–500 рублей. Цена и срок для меня наиболее важны, но насколько именно — не знаю.
-
-Кнопки: «Пример про поставщика» → «Демо-поставщики» → «Запустить анализ».
-
-## Скрипты
-
-- `npm run dev` — Express API + Vite  
-- `npm run test:mcdm` — самопроверка движка  
-- `npm run build` / `npm start` — локальный production  
-
-## Ограничения MVP
-
-- Без аккаунтов и сохранения сессий.  
-- Качество извлечения зависит от LLM (есть fallback).  
-- Manifest есть; полноценный service worker не подключён.
+Дублирующая архитектурная копия: [`docs/architecture.md`](./docs/architecture.md) (канон для научрука — этот README).
