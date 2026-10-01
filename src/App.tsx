@@ -38,6 +38,17 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return data as T;
 }
 
+function Atmosphere() {
+  return (
+    <div className="aurora" aria-hidden>
+      <i className="blob a" />
+      <i className="blob b" />
+      <i className="blob c" />
+      <i className="mesh" />
+    </div>
+  );
+}
+
 function TypingDots() {
   return (
     <div className="bubble assistant typing" aria-live="polite" aria-label="Агент печатает">
@@ -195,32 +206,33 @@ export default function App() {
   if (screen === 'hero') {
     return (
       <div className="ios-root">
+        <Atmosphere />
         <div className="ios-shell hero-shell">
-          <header className="nav-bar">
+          <header className="nav-bar glass">
             <div className="nav-brand">Опора</div>
-            <span className="nav-meta">СППР</span>
+            <span className="nav-meta caption">СППР</span>
           </header>
           <main className="hero-body">
             <h1 className="large-title">Опора</h1>
-            <p className="hero-sub">
+            <p className="hero-sub body">
               Нечёткий выбор в диалоге — устойчивое ранжирование с учётом
               неопределённости.
             </p>
-            <ul className="inset-group hero-group">
+            <ul className="inset-group hero-group glass sheet">
               <li>
                 <span className="row-label">Диалог с агентом</span>
-                <span className="row-value">критерии и важность</span>
+                <span className="row-value caption">критерии и важность</span>
               </li>
               <li>
                 <span className="row-label">Демо или свои варианты</span>
-                <span className="row-value">альтернативы</span>
+                <span className="row-value caption">альтернативы</span>
               </li>
               <li>
                 <span className="row-label">Робастный MCDM</span>
-                <span className="row-value">win rate</span>
+                <span className="row-value caption">win rate</span>
               </li>
             </ul>
-            <button type="button" className="btn-primary" onClick={start}>
+            <button type="button" className="btn-primary glass-cta" onClick={start}>
               Начать диалог
             </button>
           </main>
@@ -236,8 +248,9 @@ export default function App() {
 
     return (
       <div className="ios-root">
+        <Atmosphere />
         <div className="ios-shell results-shell">
-          <header className="nav-bar">
+          <header className="nav-bar glass">
             <button
               type="button"
               className="nav-back"
@@ -251,19 +264,19 @@ export default function App() {
 
           <div className="results-scroll">
             <h1 className="large-title compact">Ранжирование</h1>
-            <p className="section-foot">
+            <p className="section-foot caption">
               {contextLabel} · {analysis.samples} симуляций
               {session.usedDemoData ? ' · демо' : ''}
             </p>
 
-            <ol className="inset-group rank-group">
+            <ol className="inset-group rank-group glass sheet">
               {analysis.ranking.map((r, i) => (
                 <li key={r.alternativeId} className={i === 0 ? 'is-lead' : undefined}>
                   <span className="rank-n">{i + 1}</span>
                   <div className="rank-body">
                     <div className="rank-top">
                       <span className="rank-name">{r.name}</span>
-                      <span className="rank-pct">
+                      <span className="rank-pct caption">
                         {(r.winRate * 100).toFixed(0)}%
                       </span>
                     </div>
@@ -273,7 +286,7 @@ export default function App() {
                     >
                       <i style={{ width: `${Math.max(3, r.winRate * 100)}%` }} />
                     </div>
-                    <div className="rank-meta">
+                    <div className="rank-meta caption">
                       ср. ранг {r.meanRank.toFixed(2)} · балл{' '}
                       {r.expectedScore.toFixed(3)}
                     </div>
@@ -282,15 +295,15 @@ export default function App() {
               ))}
             </ol>
 
-            <p className="footnote">{analysis.sensitivityNote}</p>
+            <p className="footnote body">{analysis.sensitivityNote}</p>
             {explanation && (
               <>
-                <p className="section-label">Пояснение</p>
-                <p className="footnote explain">{explanation}</p>
+                <p className="section-label caption">Пояснение</p>
+                <p className="footnote explain body">{explanation}</p>
               </>
             )}
 
-            <button type="button" className="btn-secondary" onClick={resetAll}>
+            <button type="button" className="btn-secondary glass" onClick={resetAll}>
               Новое решение
             </button>
           </div>
@@ -301,10 +314,11 @@ export default function App() {
 
   return (
     <div className="ios-root">
+      <Atmosphere />
       <div className="ios-shell chat-shell">
-        <header className="nav-bar">
+        <header className="nav-bar glass">
           <div className="nav-brand">Опора</div>
-          <span className={`nav-meta${busy ? ' busy' : ''}`}>
+          <span className={`nav-meta caption${busy ? ' busy' : ''}`}>
             {busy ? 'Думаю…' : 'Агент'}
           </span>
         </header>
@@ -347,10 +361,10 @@ export default function App() {
           <div ref={bottomRef} />
         </div>
 
-        <footer className="composer-dock">
+        <footer className="composer-dock glass">
           {offerDemo && !session.usedDemoData && (
-            <div className="action-row">
-              <p>Подставить демо-поставщиков?</p>
+            <div className="action-row glass sheet">
+              <p className="body">Подставить демо-поставщиков?</p>
               <button type="button" disabled={busy} onClick={loadDemo}>
                 Демо
               </button>
@@ -360,7 +374,7 @@ export default function App() {
           {canAnalyze && (
             <button
               type="button"
-              className="btn-primary dock-cta"
+              className="btn-primary glass-cta dock-cta"
               disabled={busy}
               onClick={analyze}
             >
