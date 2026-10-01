@@ -22,6 +22,16 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return data as T;
 }
 
+function TypingDots() {
+  return (
+    <div className="bubble assistant typing" aria-live="polite" aria-label="Агент печатает">
+      <span className="dot" />
+      <span className="dot" />
+      <span className="dot" />
+    </div>
+  );
+}
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>('hero');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -33,10 +43,26 @@ export default function App() {
   const [analysis, setAnalysis] = useState<McdmResult | null>(null);
   const [explanation, setExplanation] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
+
+  const hasUserMessage = messages.some((m) => m.role === 'user');
+  const showExample = !hasUserMessage && !session.usedDemoData;
+  const showDemoChip =
+    !session.usedDemoData &&
+    (offerDemo || session.criteria.length >= 2) &&
+    !canAnalyze;
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, busy, screen]);
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, busy, screen, offerDemo, canAnalyze]);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = '0px';
+    el.style.height = `${Math.min(el.scrollHeight, 132)}px`;
+  }, [draft]);
 
   async function send(text: string) {
     const trimmed = text.trim();
@@ -53,7 +79,7 @@ export default function App() {
         canAnalyze: boolean;
       }>('/api/chat', {
         message: trimmed,
-        // prior history only — current turn is `message`
+        // prior history only — current turn is `message` (QA: avoid duplicate user turn)
         messages,
         session,
       });
@@ -75,6 +101,7 @@ export default function App() {
       ]);
     } finally {
       setBusy(false);
+      requestAnimationFrame(() => textareaRef.current?.focus());
     }
   }
 
@@ -133,16 +160,29 @@ export default function App() {
     ]);
   }
 
+  function resetAll() {
+    setScreen('hero');
+    setMessages([]);
+    setSession(emptySession());
+    setAnalysis(null);
+    setExplanation('');
+    setCanAnalyze(false);
+    setOfferDemo(false);
+    setDraft('');
+    setBusy(false);
+  }
+
   if (screen === 'hero') {
     return (
       <>
         <div className="app-bg" aria-hidden />
-        <div className="shell">
+        <div className="shell hero-shell">
           <section className="hero">
+            <p className="hero-kicker">СППР · LLM + робастный MCDM</p>
             <h1 className="brand">Опора</h1>
-            <p>
-              Интеллектуальная СППР: LLM-агент собирает нечёткие критерии, робастный
-              MCDM ранжирует варианты с учётом неопределённости.
+            <p className="hero-lead">
+              Соберите нечёткий выбор в диалоге — получите устойчивое ранжирование
+              с учётом неопределённости.
             </p>
             <button type="button" className="cta" onClick={start}>
               Начать диалог
@@ -162,32 +202,41 @@ export default function App() {
             <div className="logo">Опора</div>
             <button
               type="button"
-              className="chip"
+              className="chip ghost"
               onClick={() => setScreen('chat')}
-              style={{ background: 'transparent' }}
             >
               ← к диалогу
             </button>
           </header>
           <h1>Ранжирование</h1>
           <p className="lead">
-            {session.context || 'Решение'} · {analysis.samples} симуляций
+            {session.context?.trim() ||
+              (session.usedDemoData ? 'Выбор поставщика' : 'Решение')}{' '}
+            · {analysis.samples} симуляций
             {session.usedDemoData ? ' · демо-данные' : ''}
           </p>
           <ol className="rank-list">
             {analysis.ranking.map((r, i) => (
-              <li key={r.alternativeId} className="rank-item">
+              <li
+                key={r.alternativeId}
+                className={`rank-item${i === 0 ? ' leader' : ''}`}
+                style={{ animationDelay: `${0.06 * i}s` }}
+              >
                 <span className="n">{i + 1}</span>
                 <div>
                   <div className="meta">
                     <span className="name">{r.name}</span>
                     <span className="pct">{(r.winRate * 100).toFixed(0)}% побед</span>
                   </div>
-                  <div className="bar" title={`Ожидаемый балл ${r.expectedScore.toFixed(3)}`}>
+                  <div
+                    className="bar"
+                    title={`Ожидаемый балл ${r.expectedScore.toFixed(3)}`}
+                  >
                     <i style={{ width: `${Math.max(4, r.winRate * 100)}%` }} />
                   </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: 4 }}>
-                    ср. ранг {r.meanRank.toFixed(2)} · балл {r.expectedScore.toFixed(3)}
+                  <div className="rank-stats">
+                    ср. ранг {r.meanRank.toFixed(2)} · балл{' '}
+                    {r.expectedScore.toFixed(3)}
                   </div>
                 </div>
               </li>
@@ -195,23 +244,16 @@ export default function App() {
           </ol>
           <p className="note">{analysis.sensitivityNote}</p>
           {explanation && (
-            <p className="explain">{explanation}</p>
+            <section className="explain-block">
+              <h2>Пояснение</h2>
+              <p className="explain">{explanation}</p>
+            </section>
           )}
-          <button
-            type="button"
-            className="cta secondary"
-            onClick={() => {
-              setScreen('hero');
-              setMessages([]);
-              setSession(emptySession());
-              setAnalysis(null);
-              setExplanation('');
-              setCanAnalyze(false);
-              setOfferDemo(false);
-            }}
-          >
-            Новое решение
-          </button>
+          <div className="results-actions">
+            <button type="button" className="cta secondary" onClick={resetAll}>
+              Новое решение
+            </button>
+          </div>
         </div>
       </>
     );
@@ -220,17 +262,24 @@ export default function App() {
   return (
     <>
       <div className="app-bg" aria-hidden />
-      <div className="shell" style={{ height: '100dvh' }}>
+      <div className="shell chat-shell">
         <header className="topbar">
           <div className="logo">Опора</div>
-          <span className="chip">{busy ? 'думаю…' : 'агент + MCDM'}</span>
+          <span className={`chip${busy ? ' busy' : ''}`}>
+            {busy ? 'думаю…' : 'агент + MCDM'}
+          </span>
         </header>
 
         {(session.criteria.length > 0 || session.alternatives.length > 0) && (
           <div className="session-strip" aria-label="Состояние сессии">
-            {session.context && <span>Контекст: {session.context}</span>}
+            {(session.context?.trim() ||
+              (session.criteria.length > 0 ? 'Решение в работе' : '')) && (
+              <span className="strip-ctx">
+                {session.context?.trim() || 'Решение в работе'}
+              </span>
+            )}
             {session.criteria.map((c) => (
-              <span key={c.id}>
+              <span key={c.id} className="strip-crit">
                 {c.name}
                 {c.importance === 'high' ? ' ★' : ''}
                 {c.weightUncertain ? ' ±' : ''}
@@ -240,60 +289,100 @@ export default function App() {
               </span>
             ))}
             {session.alternatives.map((a) => (
-              <span key={a.id}>{a.name}</span>
+              <span key={a.id} className="strip-alt">
+                {a.name}
+              </span>
             ))}
           </div>
         )}
 
-        <div className="messages">
+        {session.missing.length > 0 && !canAnalyze && (
+          <p className="clarify-hint" role="status">
+            Уточните: {session.missing.join(', ')}
+          </p>
+        )}
+
+        <div className="messages" ref={messagesRef}>
           {messages.map((m, i) => (
             <div key={i} className={`bubble ${m.role}`}>
               {m.content}
             </div>
           ))}
-          {busy && <div className="loading">Агент обрабатывает…</div>}
+          {busy && <TypingDots />}
           <div ref={bottomRef} />
         </div>
 
-        <div className="quick">
-          <button type="button" disabled={busy} onClick={() => send(EXAMPLE)}>
-            Пример про поставщика
-          </button>
-          {(offerDemo || session.criteria.length >= 2) && (
-            <button type="button" disabled={busy} onClick={loadDemo}>
-              Демо-поставщики
-            </button>
+        <div className="dock">
+          {offerDemo && !session.usedDemoData && (
+            <div className="demo-banner">
+              <p>Альтернатив пока нет — подставить демо-поставщиков?</p>
+              <button type="button" disabled={busy} onClick={loadDemo}>
+                Демо-поставщики
+              </button>
+            </div>
           )}
+
           {canAnalyze && (
-            <button type="button" disabled={busy} onClick={analyze}>
+            <button
+              type="button"
+              className="cta analyze"
+              disabled={busy}
+              onClick={analyze}
+            >
               Запустить анализ
             </button>
           )}
-        </div>
 
-        <form
-          className="composer"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void send(draft);
-          }}
-        >
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Опишите выбор…"
-            rows={2}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                void send(draft);
-              }
+          {(showExample || showDemoChip) && (
+            <div className="quick">
+              {showExample && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => send(EXAMPLE)}
+                >
+                  Пример про поставщика
+                </button>
+              )}
+              {showDemoChip && !offerDemo && (
+                <button type="button" disabled={busy} onClick={loadDemo}>
+                  Демо-поставщики
+                </button>
+              )}
+            </div>
+          )}
+
+          <form
+            className="composer"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void send(draft);
             }}
-          />
-          <button className="send" type="submit" disabled={busy || !draft.trim()} aria-label="Отправить">
-            →
-          </button>
-        </form>
+          >
+            <textarea
+              ref={textareaRef}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              placeholder="Опишите выбор…"
+              rows={1}
+              enterKeyHint="send"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  void send(draft);
+                }
+              }}
+            />
+            <button
+              className="send"
+              type="submit"
+              disabled={busy || !draft.trim()}
+              aria-label="Отправить"
+            >
+              →
+            </button>
+          </form>
+        </div>
       </div>
     </>
   );
