@@ -11,6 +11,7 @@ type Screen = 'hero' | 'chat' | 'results';
 const EXAMPLE =
   'Я выбираю поставщика. Есть цена, срок поставки, процент брака и минимальная партия. По цене точно сказать не могу — примерно 450–500 рублей. Цена и срок для меня наиболее важны, но насколько именно — не знаю.';
 
+/** Same-origin `/api/*` on Vercel (no absolute base URL needed). */
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let res: Response;
   try {
@@ -20,28 +21,19 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
       body: JSON.stringify(body),
     });
   } catch {
+    throw new Error('Нет ответа от /api — проверьте деплой serverless-функций.');
+  }
+  const text = await res.text();
+  let data: { error?: string } | null = null;
+  try {
+    data = text ? (JSON.parse(text) as { error?: string }) : null;
+  } catch {
     throw new Error(
-      'Сеть: не удалось достучаться до /api. Проверьте деплой serverless-функций.',
+      `API ${res.status}: ответ не JSON (функция упала при старте?).`,
     );
   }
-  const raw = await res.text();
-  let data: { error?: string } = {};
-  if (raw) {
-    try {
-      data = JSON.parse(raw) as { error?: string };
-    } catch {
-      if (raw.includes('FUNCTION_INVOCATION_FAILED')) {
-        throw new Error(
-          'API на Vercel упал при старте (FUNCTION_INVOCATION_FAILED). Нужен редеплой с исправлением serverless.',
-        );
-      }
-      throw new Error(
-        `Ответ API не JSON (HTTP ${res.status}). Маршрут /api может быть недоступен.`,
-      );
-    }
-  }
   if (!res.ok) {
-    throw new Error(data.error || `Ошибка API (HTTP ${res.status})`);
+    throw new Error(data?.error || `Ошибка API (${res.status})`);
   }
   return data as T;
 }
@@ -115,15 +107,14 @@ export default function App() {
         { role: 'assistant', content: data.reply },
       ]);
     } catch (e) {
-      const msg =
-        e instanceof Error
-          ? e.message
-          : 'Не удалось связаться с агентом. Проверьте сервер и OPENAI_API_KEY.';
+      const detail = e instanceof Error ? e.message : '';
       setMessages([
         ...nextMessages,
         {
           role: 'assistant',
-          content: msg,
+          content: detail
+            ? `Не удалось связаться с агентом: ${detail}`
+            : 'Не удалось связаться с агентом. Проверьте /api/health и OPENAI_API_KEY на Vercel.',
         },
       ]);
     } finally {
@@ -148,9 +139,11 @@ export default function App() {
         { role: 'user', content: 'Использовать демо-поставщиков' },
         { role: 'assistant', content: data.reply },
       ]);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Не удалось загрузить демо.';
-      setMessages((m) => [...m, { role: 'assistant', content: msg }]);
+    } catch {
+      setMessages((m) => [
+        ...m,
+        { role: 'assistant', content: 'Не удалось загрузить демо.' },
+      ]);
     } finally {
       setBusy(false);
     }

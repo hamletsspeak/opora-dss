@@ -1,4 +1,4 @@
-import type { Alternative, Criterion, SessionState } from './types';
+import type { Alternative, Criterion, SessionState } from './types.js';
 
 export const DEMO_CRITERIA: Criterion[] = [
   {

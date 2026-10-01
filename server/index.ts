@@ -4,10 +4,10 @@ import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { emptySession, type ChatMessage, type SessionState } from '../shared/types';
-import { runRobustMcdm, isAnalysisReady } from '../shared/mcdm';
-import { applyDemoSuppliers } from '../shared/demo';
-import { explainResult, runAgentTurn } from './agent';
+import { emptySession, type ChatMessage, type SessionState } from '../shared/types.js';
+import { runRobustMcdm, isAnalysisReady } from '../shared/mcdm.js';
+import { applyDemoSuppliers } from '../shared/demo.js';
+import { explainResult, runAgentTurn } from './agent.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');

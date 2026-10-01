@@ -4,10 +4,10 @@ import type {
   ChatMessage,
   Criterion,
   SessionState,
-} from '../shared/types';
-import { emptySession } from '../shared/types';
-import { applyDemoSuppliers } from '../shared/demo';
-import { isAnalysisReady } from '../shared/mcdm';
+} from '../shared/types.js';
+import { emptySession } from '../shared/types.js';
+import { applyDemoSuppliers } from '../shared/demo.js';
+import { isAnalysisReady } from '../shared/mcdm.js';
 
 const SYSTEM = `Ты агент СППР «Опора». Извлекай структуру решения из русской речи.
 Отвечай ТОЛЬКО JSON:

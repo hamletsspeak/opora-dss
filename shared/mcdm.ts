@@ -4,7 +4,7 @@ import type {
   McdmResult,
   RankItem,
   SessionState,
-} from './types';
+} from './types.js';
 
 /** Mulberry32 PRNG — deterministic given seed */
 function mulberry32(seed: number): () => number {

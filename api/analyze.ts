@@ -1,14 +1,14 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { SessionState } from '../shared/types';
-import { runRobustMcdm, isAnalysisReady } from '../shared/mcdm';
-import { explainResult } from '../server/agent';
+import type { SessionState } from '../shared/types.js';
+import { runRobustMcdm, isAnalysisReady } from '../shared/mcdm.js';
+import { explainResult } from '../server/agent.js';
 import {
   getApiKey,
   getModel,
   handleOptions,
   methodNotAllowed,
   parseBody,
-} from './lib';
+} from './_lib.js';
 
 export const config = { maxDuration: 60 };
 
