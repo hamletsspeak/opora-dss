@@ -53,6 +53,8 @@ vercel --prod   # production
 
 ## Архитектура
 
+Краткое описание для научного руководителя: **[docs/architecture.md](./docs/architecture.md)** (тема ВКР, поток UI→LLM→MCDM, Mermaid, ограничения MVP).
+
 ```
 Браузер (React/Vite, RU UI)
     │  POST /api/chat | /api/demo | /api/analyze

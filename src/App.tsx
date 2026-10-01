@@ -28,6 +28,68 @@ const COACH_TIPS = [
   },
 ] as const;
 
+const HERO_LINE =
+  'Поможем выбрать спокойно, даже если цифры неточные и важность «на глаз».';
+
+function BrandMark({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
+  return (
+    <img
+      src="/klar-logo.png"
+      alt="Klar"
+      className={`brand-mark brand-${size}`}
+      draggable={false}
+      decoding="async"
+    />
+  );
+}
+
+function Typewriter({
+  text,
+  className,
+  onDone,
+}: {
+  text: string;
+  className?: string;
+  onDone?: () => void;
+}) {
+  const [n, setN] = useState(0);
+  const [done, setDone] = useState(false);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    const reduce =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) {
+      setN(text.length);
+      setDone(true);
+      onDoneRef.current?.();
+      return;
+    }
+    setN(0);
+    setDone(false);
+    let i = 0;
+    const id = window.setInterval(() => {
+      i += 1;
+      setN(i);
+      if (i >= text.length) {
+        window.clearInterval(id);
+        setDone(true);
+        onDoneRef.current?.();
+      }
+    }, 26);
+    return () => window.clearInterval(id);
+  }, [text]);
+
+  return (
+    <p className={className} aria-label={text}>
+      <span>{text.slice(0, n)}</span>
+      <span className={`type-caret${done ? ' idle' : ''}`} aria-hidden />
+    </p>
+  );
+}
+
 /** Same-origin `/api/*` on Vercel (no absolute base URL needed). */
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let res: Response;
@@ -107,8 +169,9 @@ export default function App() {
   const [canAnalyze, setCanAnalyze] = useState(false);
   const [analysis, setAnalysis] = useState<McdmResult | null>(null);
   const [explanation, setExplanation] = useState('');
-  const [coachOpen, setCoachOpen] = useState(() => !readCoachDismissed());
+  const [coachOpen, setCoachOpen] = useState(false);
   const [coachStep, setCoachStep] = useState(0);
+  const [introReady, setIntroReady] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -132,6 +195,14 @@ export default function App() {
     el.style.height = 'auto';
     el.style.height = `${Math.min(Math.max(el.scrollHeight, 36), 112)}px`;
   }, [draft]);
+
+  useEffect(() => {
+    if (screen !== 'hero') return;
+    if (readCoachDismissed()) return;
+    if (!introReady) return;
+    const t = window.setTimeout(() => setCoachOpen(true), 380);
+    return () => window.clearTimeout(t);
+  }, [screen, introReady]);
 
   function dismissCoach(forever: boolean) {
     setCoachOpen(false);
@@ -254,6 +325,7 @@ export default function App() {
     setOfferDemo(false);
     setDraft('');
     setBusy(false);
+    setIntroReady(false);
     if (!readCoachDismissed()) setCoachOpen(true);
   }
 
@@ -312,7 +384,7 @@ export default function App() {
       <div className="ios-root">
         <Atmosphere />
         <div className="ios-shell hero-shell">
-          <header className="nav-bar glass nav-welcome" aria-label="Klar">
+          <header className="nav-bar glass nav-welcome reveal-item d0" aria-label="Klar">
             <div className="nav-side leading">
               <button
                 type="button"
@@ -332,14 +404,17 @@ export default function App() {
           </header>
           <main className="hero-body">
             <div className="hero-copy">
-              <h1 className="large-title">Klar</h1>
-              <p className="hero-sub body">
-                Поможем выбрать спокойно, даже если цифры неточные и важность
-                «на глаз».
-              </p>
+              <h1 className="brand-hero reveal-item d1">
+                <BrandMark size="lg" />
+              </h1>
+              <Typewriter
+                text={HERO_LINE}
+                className="hero-sub body reveal-item d2"
+                onDone={() => setIntroReady(true)}
+              />
             </div>
             <div className="hero-bottom">
-              <ol className="inset-group hero-group glass sheet steps-list">
+              <ol className="inset-group hero-group glass sheet steps-list reveal-item d3">
                 <li>
                   <span className="step-n">1</span>
                   <span className="row-label">Расскажите о выборе</span>
@@ -353,7 +428,11 @@ export default function App() {
                   <span className="row-label">Сравним устойчиво</span>
                 </li>
               </ol>
-              <button type="button" className="btn-primary glass-cta" onClick={start}>
+              <button
+                type="button"
+                className="btn-primary glass-cta reveal-item d4"
+                onClick={start}
+              >
                 Начать
               </button>
             </div>
@@ -384,7 +463,9 @@ export default function App() {
                 ‹ Диалог
               </button>
             </div>
-            <div className="nav-title">Klar</div>
+            <div className="nav-brand-slot" aria-label="Klar">
+              <BrandMark size="sm" />
+            </div>
             <div className="nav-side trailing" aria-hidden />
           </header>
 
@@ -468,9 +549,9 @@ export default function App() {
     <div className="ios-root">
       <Atmosphere />
       <div className="ios-shell chat-shell">
-        <header className="nav-bar glass nav-compact">
+        <header className="nav-bar glass nav-compact" aria-label="Klar">
           <div className="nav-side leading">
-            <span className="nav-title">Klar</span>
+            <BrandMark size="sm" />
           </div>
           <div className="nav-side trailing">
             <button

@@ -345,18 +345,12 @@ button {
   flex: 1 1 auto;
 }
 
-.nav-title {
+.nav-brand-slot {
   position: relative;
   z-index: 1;
-  font-size: 17px;
-  font-weight: 680;
-  letter-spacing: -0.028em;
-  line-height: 1.15;
-  color: var(--label);
-}
-
-.nav-compact .nav-title {
-  /* brand only once, compact */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .nav-compact:has(.nav-back) {
@@ -370,13 +364,101 @@ button {
   min-width: 0;
 }
 
-.nav-compact:has(.nav-back) .nav-title {
+.nav-compact:has(.nav-back) .nav-brand-slot {
   grid-column: 2;
   justify-self: center;
 }
 
 .nav-compact:has(.nav-back) .nav-side.trailing {
   grid-column: 3;
+}
+
+/* —— Brand mark —— */
+.brand-mark {
+  display: block;
+  height: auto;
+  width: auto;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.brand-sm {
+  height: 26px;
+  max-width: 96px;
+}
+
+.brand-md {
+  height: 36px;
+  max-width: 140px;
+}
+
+.brand-lg {
+  height: clamp(52px, 14vw, 72px);
+  max-width: min(280px, 78vw);
+  filter: drop-shadow(0 10px 24px rgba(0, 0, 0, 0.35));
+}
+
+.brand-hero {
+  margin: 0;
+  line-height: 0;
+}
+
+/* —— Reveal / typewriter —— */
+.reveal-item {
+  opacity: 0;
+  transform: translateY(14px);
+  animation: reveal-up 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.reveal-item.d0 {
+  animation-delay: 0.05s;
+}
+.reveal-item.d1 {
+  animation-delay: 0.14s;
+}
+.reveal-item.d2 {
+  animation-delay: 0.28s;
+}
+.reveal-item.d3 {
+  animation-delay: 0.55s;
+}
+.reveal-item.d4 {
+  animation-delay: 0.78s;
+}
+
+@keyframes reveal-up {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.type-caret {
+  display: inline-block;
+  width: 0.08em;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: var(--tint);
+  border-radius: 1px;
+  animation: caret-blink 0.9s steps(1) infinite;
+}
+
+.type-caret.idle {
+  opacity: 0;
+  animation: none;
+}
+
+@keyframes caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
 }
 
 .status-chip {
@@ -1136,8 +1218,19 @@ button {
   .glass::before,
   .btn-primary.glass-cta::before,
   .bubble.typing .dot,
-  .hero-shell .hero-body {
+  .hero-shell .hero-body,
+  .reveal-item,
+  .type-caret {
     animation: none !important;
+  }
+
+  .reveal-item {
+    opacity: 1;
+    transform: none;
+  }
+
+  .type-caret {
+    display: none;
   }
 }
 
