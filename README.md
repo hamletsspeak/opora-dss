@@ -5,7 +5,7 @@
 ## Быстрый старт (локально)
 
 ```bash
-git clone <URL-репозитория>
+git clone https://github.com/hamletsspeak/opora-dss.git
 cd dss-opora
 cp .env.example .env
 # Впишите OPENAI_API_KEY в .env (не коммитьте)
