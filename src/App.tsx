@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type {
   ChatMessage,
   McdmResult,
@@ -148,6 +148,26 @@ function TipHint({ label, text }: { label: string; text: string }) {
         {text}
       </span>
     </span>
+  );
+}
+
+function AppHeader({
+  leading,
+  trailing,
+  className = '',
+}: {
+  leading?: ReactNode;
+  trailing?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <header className={`nav-bar nav-island-bar ${className}`.trim()} aria-label="Klar">
+      <div className="nav-side leading">{leading}</div>
+      <div className="nav-island glass">
+        <BrandMark size="sm" />
+      </div>
+      <div className="nav-side trailing">{trailing ?? null}</div>
+    </header>
   );
 }
 
@@ -384,8 +404,9 @@ export default function App() {
       <div className="ios-root">
         <Atmosphere />
         <div className="ios-shell hero-shell">
-          <header className="nav-bar glass nav-welcome reveal-item d0" aria-label="Klar">
-            <div className="nav-side leading">
+          <AppHeader
+            className="reveal-item d0"
+            leading={
               <button
                 type="button"
                 className="nav-help"
@@ -397,24 +418,18 @@ export default function App() {
               >
                 ?
               </button>
-            </div>
-            <div className="nav-side trailing">
-              <span className="status-chip">СППР</span>
-            </div>
-          </header>
+            }
+          />
           <main className="hero-body">
             <div className="hero-copy">
-              <h1 className="brand-hero reveal-item d1">
-                <BrandMark size="lg" />
-              </h1>
               <Typewriter
                 text={HERO_LINE}
-                className="hero-sub body reveal-item d2"
+                className="hero-sub body reveal-item d1"
                 onDone={() => setIntroReady(true)}
               />
             </div>
             <div className="hero-bottom">
-              <ol className="inset-group hero-group glass sheet steps-list reveal-item d3">
+              <ol className="inset-group hero-group glass sheet steps-list reveal-item d2">
                 <li>
                   <span className="step-n">1</span>
                   <span className="row-label">Расскажите о выборе</span>
@@ -430,7 +445,7 @@ export default function App() {
               </ol>
               <button
                 type="button"
-                className="btn-primary glass-cta reveal-item d4"
+                className="btn-primary glass-cta reveal-item d3"
                 onClick={start}
               >
                 Начать
@@ -453,8 +468,8 @@ export default function App() {
       <div className="ios-root">
         <Atmosphere />
         <div className="ios-shell results-shell">
-          <header className="nav-bar glass nav-compact">
-            <div className="nav-side leading">
+          <AppHeader
+            leading={
               <button
                 type="button"
                 className="nav-back"
@@ -462,12 +477,8 @@ export default function App() {
               >
                 ‹ Диалог
               </button>
-            </div>
-            <div className="nav-brand-slot" aria-label="Klar">
-              <BrandMark size="sm" />
-            </div>
-            <div className="nav-side trailing" aria-hidden />
-          </header>
+            }
+          />
 
           <div className="results-scroll">
             <h1 className="large-title compact">Итог сравнения</h1>
@@ -549,11 +560,8 @@ export default function App() {
     <div className="ios-root">
       <Atmosphere />
       <div className="ios-shell chat-shell">
-        <header className="nav-bar glass nav-compact" aria-label="Klar">
-          <div className="nav-side leading">
-            <BrandMark size="sm" />
-          </div>
-          <div className="nav-side trailing">
+        <AppHeader
+          leading={
             <button
               type="button"
               className="nav-help"
@@ -565,11 +573,13 @@ export default function App() {
             >
               ?
             </button>
+          }
+          trailing={
             <span className={`status-chip${busy ? ' busy' : ''}`}>
               {busy ? 'Думаю…' : 'Agent'}
             </span>
-          </div>
-        </header>
+          }
+        />
 
         {showSessionMeta && (
           <div className="meta-strip" aria-label="Что уже поняли">
