@@ -155,24 +155,18 @@ function AppHeader({
   leading,
   trailing,
   className = '',
-  compact = false,
 }: {
   leading?: ReactNode;
   trailing?: ReactNode;
   className?: string;
-  /** Sheet / overlay: no safe-area top padding */
-  compact?: boolean;
 }) {
   return (
-    <header
-      className={`nav-bar nav-island-bar${compact ? ' nav-in-sheet' : ''} ${className}`.trim()}
-      aria-label="Klar"
-    >
-      <div className="nav-side leading">{leading ?? <span className="nav-slot" />}</div>
+    <header className={`nav-bar nav-island-bar ${className}`.trim()} aria-label="Klar">
+      <div className="nav-side leading">{leading}</div>
       <div className="nav-island glass">
         <BrandMark size="sm" />
       </div>
-      <div className="nav-side trailing">{trailing ?? <span className="nav-slot" />}</div>
+      <div className="nav-side trailing">{trailing ?? null}</div>
     </header>
   );
 }
@@ -198,8 +192,6 @@ export default function App() {
   const [coachOpen, setCoachOpen] = useState(false);
   const [coachStep, setCoachStep] = useState(0);
   const [introReady, setIntroReady] = useState(false);
-  /** Bumps on home reset so welcome remounts with current layout/animations */
-  const [welcomeKey, setWelcomeKey] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -344,6 +336,7 @@ export default function App() {
   }
 
   function resetAll() {
+    setScreen('hero');
     setMessages([]);
     setSession(emptySession());
     setAnalysis(null);
@@ -354,31 +347,15 @@ export default function App() {
     setBusy(false);
     setCoachOpen(false);
     setCoachStep(0);
+    // Let hero typewriter finish, then useEffect opens coach (if not dismissed)
     setIntroReady(false);
-    setWelcomeKey((k) => k + 1);
-    setScreen('hero');
   }
-
-  const helpBtn = (
-    <button
-      type="button"
-      className="nav-help"
-      onClick={() => {
-        setCoachStep(0);
-        setCoachOpen(true);
-      }}
-      aria-label="Подсказки"
-    >
-      ?
-    </button>
-  );
 
   const coachCard = coachOpen && (
     <div className="coach-scrim" role="dialog" aria-modal="true" aria-labelledby="coach-title">
-      <div className="coach-sheet glass sheet reveal-item d0">
-        <AppHeader compact className="coach-header" />
+      <div className="coach-sheet glass sheet">
         <p className="coach-kicker caption" id="coach-title">
-          Как это работает
+          Как устроен Klar
         </p>
         <div className="coach-steps" aria-hidden>
           {COACH_TIPS.map((_, i) => (
@@ -426,14 +403,28 @@ export default function App() {
 
   if (screen === 'hero') {
     return (
-      <div className="ios-root" key={`welcome-${welcomeKey}`}>
+      <div className="ios-root">
         <Atmosphere />
         <div className="ios-shell hero-shell">
-          <AppHeader className="reveal-item d0" leading={helpBtn} />
+          <AppHeader
+            className="reveal-item d0"
+            leading={
+              <button
+                type="button"
+                className="nav-help"
+                onClick={() => {
+                  setCoachStep(0);
+                  setCoachOpen(true);
+                }}
+                aria-label="Как пользоваться"
+              >
+                ?
+              </button>
+            }
+          />
           <main className="hero-body">
             <div className="hero-copy">
               <Typewriter
-                key={`tw-${welcomeKey}`}
                 text={HERO_LINE}
                 className="hero-sub body reveal-item d1"
                 onDone={() => setIntroReady(true)}
@@ -480,7 +471,6 @@ export default function App() {
         <Atmosphere />
         <div className="ios-shell results-shell">
           <AppHeader
-            className="reveal-item d0"
             leading={
               <button
                 type="button"
@@ -493,14 +483,14 @@ export default function App() {
           />
 
           <div className="results-scroll">
-            <h1 className="large-title compact reveal-item d1">Итог сравнения</h1>
-            <p className="section-foot caption reveal-item d1">
+            <h1 className="large-title compact">Итог сравнения</h1>
+            <p className="section-foot caption">
               {contextLabel}
               {session.usedDemoData ? ' · демо-варианты' : ''}
             </p>
 
             {leader && (
-              <p className="leader-plain body reveal-item d2">
+              <p className="leader-plain body">
                 Чаще всего выигрывает <strong>{leader.name}</strong> — примерно в{' '}
                 {(leader.winRate * 100).toFixed(0)}% проверок. Это не «гарантия»,
                 а насколько вариант устойчив, когда данные и важность чуть
@@ -508,7 +498,7 @@ export default function App() {
               </p>
             )}
 
-            <p className="section-label caption reveal-item d2">
+            <p className="section-label caption">
               Как часто побеждает
               <TipHint
                 label="Как часто побеждает"
@@ -516,7 +506,7 @@ export default function App() {
               />
             </p>
 
-            <ol className="inset-group rank-group glass sheet reveal-item d3">
+            <ol className="inset-group rank-group glass sheet">
               {analysis.ranking.map((r, i) => (
                 <li key={r.alternativeId} className={i === 0 ? 'is-lead' : undefined}>
                   <span className="rank-n">{i + 1}</span>
@@ -541,19 +531,15 @@ export default function App() {
               ))}
             </ol>
 
-            <p className="footnote body reveal-item d4">{analysis.sensitivityNote}</p>
+            <p className="footnote body">{analysis.sensitivityNote}</p>
             {explanation && (
               <>
-                <p className="section-label caption reveal-item d4">Простыми словами</p>
-                <p className="footnote explain body reveal-item d4">{explanation}</p>
+                <p className="section-label caption">Простыми словами</p>
+                <p className="footnote explain body">{explanation}</p>
               </>
             )}
 
-            <button
-              type="button"
-              className="btn-secondary glass reveal-item d4"
-              onClick={resetAll}
-            >
+            <button type="button" className="btn-secondary glass" onClick={resetAll}>
               Новый выбор
             </button>
           </div>
@@ -577,8 +563,19 @@ export default function App() {
       <Atmosphere />
       <div className="ios-shell chat-shell">
         <AppHeader
-          className="reveal-item d0"
-          leading={helpBtn}
+          leading={
+            <button
+              type="button"
+              className="nav-help"
+              onClick={() => {
+                setCoachStep(0);
+                setCoachOpen(true);
+              }}
+              aria-label="Подсказки"
+            >
+              ?
+            </button>
+          }
           trailing={
             <span className={`status-chip${busy ? ' busy' : ''}`}>
               {busy ? 'Думаю…' : 'Agent'}
@@ -587,7 +584,7 @@ export default function App() {
         />
 
         {showSessionMeta && (
-          <div className="meta-strip reveal-item d1" aria-label="Что уже поняли">
+          <div className="meta-strip" aria-label="Что уже поняли">
             {(session.context?.trim() ||
               (session.criteria.length > 0 ? 'Ваш выбор' : '')) && (
               <span>{session.context?.trim() || 'Ваш выбор'}</span>
@@ -609,12 +606,12 @@ export default function App() {
         )}
 
         {session.missing.length > 0 && !canAnalyze && (
-          <p className="clarify reveal-item d1" role="status">
+          <p className="clarify" role="status">
             Чтобы продолжить, расскажите ещё про: {missingFriendly}.
           </p>
         )}
 
-        <div className="messages reveal-item d2" role="log" aria-live="polite">
+        <div className="messages" role="log" aria-live="polite">
           {messages.map((m, i) => (
             <div key={i} className={`bubble ${m.role}`}>
               {m.content}
@@ -624,7 +621,7 @@ export default function App() {
           <div ref={bottomRef} />
         </div>
 
-        <footer className="composer-dock glass reveal-item d3">
+        <footer className="composer-dock glass">
           {offerDemo && !session.usedDemoData && (
             <div className="action-row glass sheet">
               <p className="body">Нет своих вариантов? Подставим демо.</p>
