@@ -1,4 +1,4 @@
-import type { McdmResult, RankItem } from '../shared/types';
+import type { MethodAgreement, RankItem } from '../shared/types';
 
 /** Flexible multi-method shapes from backend (or future packs). */
 export type MethodSlice = {
@@ -8,17 +8,26 @@ export type MethodSlice = {
   meanRank?: number;
 };
 
-export type FlexibleAnalysis = McdmResult & {
-  methods?: unknown;
-  multiMethod?: unknown;
-  methodRankings?: unknown;
-  agreement?: {
-    leaderMatchRate?: number;
+/** UI-facing analysis: primary ranking always present; multi-method optional. */
+export type FlexibleAnalysis = {
+  ranking: RankItem[];
+  samples: number;
+  sensitivityNote: string;
+  weightMeans: Record<string, number>;
+  /** Backend object { topsis, wsm, vikor } or normalized MethodSlice[] */
+  methods?:
+    | MethodSlice[]
+    | {
+        topsis: RankItem[];
+        wsm: RankItem[];
+        vikor: RankItem[];
+      };
+  agreement?: Partial<MethodAgreement> & {
     meanRank?: number;
     meanRankCorrelation?: number;
     [key: string]: unknown;
   };
-  mcdmParams?: Record<string, unknown>;
+  mcdmParams?: { samples?: number; seed?: number } & Record<string, unknown>;
 };
 
 function asRankItem(raw: unknown): RankItem | null {
@@ -39,14 +48,15 @@ function asRankItem(raw: unknown): RankItem | null {
   };
 }
 
+function asRankList(raw: unknown): RankItem[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(asRankItem).filter((r): r is RankItem => r != null);
+}
+
 function asMethodSlice(raw: unknown, index: number): MethodSlice | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
-  const rankingRaw = o.ranking ?? o.ranks ?? o.items;
-  if (!Array.isArray(rankingRaw)) return null;
-  const ranking = rankingRaw
-    .map(asRankItem)
-    .filter((r): r is RankItem => r != null);
+  const ranking = asRankList(o.ranking ?? o.ranks ?? o.items);
   if (!ranking.length) return null;
   const method = String(
     o.method ?? o.name ?? o.id ?? o.label ?? `method-${index + 1}`,
@@ -68,16 +78,13 @@ function asMethodSlice(raw: unknown, index: number): MethodSlice | null {
 export function normalizeAnalysis(raw: unknown): FlexibleAnalysis | null {
   if (!raw || typeof raw !== 'object') return null;
   const o = raw as Record<string, unknown>;
-  const rankingRaw = o.ranking;
-  if (!Array.isArray(rankingRaw) || rankingRaw.length === 0) return null;
-  const ranking = rankingRaw
-    .map(asRankItem)
-    .filter((r): r is RankItem => r != null);
+  const ranking = asRankList(o.ranking);
   if (!ranking.length) return null;
 
+  const samples = Number(o.samples ?? 0);
   const base: FlexibleAnalysis = {
     ranking,
-    samples: Number(o.samples ?? 0),
+    samples: Number.isFinite(samples) ? samples : 0,
     sensitivityNote: String(o.sensitivityNote ?? ''),
     weightMeans:
       o.weightMeans && typeof o.weightMeans === 'object'
@@ -86,8 +93,16 @@ export function normalizeAnalysis(raw: unknown): FlexibleAnalysis | null {
   };
 
   if (o.mcdmParams && typeof o.mcdmParams === 'object') {
-    base.mcdmParams = o.mcdmParams as Record<string, unknown>;
+    const p = o.mcdmParams as Record<string, unknown>;
+    base.mcdmParams = {
+      ...p,
+      samples: Number(p.samples ?? samples),
+      seed: Number(p.seed ?? 42),
+    };
+  } else {
+    base.mcdmParams = { samples: base.samples, seed: 42 };
   }
+
   if (o.agreement && typeof o.agreement === 'object') {
     base.agreement = o.agreement as FlexibleAnalysis['agreement'];
   }
@@ -98,14 +113,34 @@ export function normalizeAnalysis(raw: unknown): FlexibleAnalysis | null {
       .map(asMethodSlice)
       .filter((m): m is MethodSlice => m != null);
     if (methods.length) base.methods = methods;
+  } else if (bag && typeof bag === 'object') {
+    const m = bag as Record<string, unknown>;
+    const topsis = asRankList(m.topsis);
+    const wsm = asRankList(m.wsm);
+    const vikor = asRankList(m.vikor);
+    if (topsis.length || wsm.length || vikor.length) {
+      base.methods = {
+        topsis: topsis.length ? topsis : ranking,
+        wsm: wsm.length ? wsm : ranking,
+        vikor: vikor.length ? vikor : ranking,
+      };
+    }
   }
 
   return base;
 }
 
 export function extractMethodSlices(analysis: FlexibleAnalysis): MethodSlice[] {
-  if (!Array.isArray(analysis.methods)) return [];
-  return analysis.methods
-    .map(asMethodSlice)
-    .filter((m): m is MethodSlice => m != null);
+  const m = analysis.methods;
+  if (!m) return [];
+  if (Array.isArray(m)) {
+    return m
+      .map(asMethodSlice)
+      .filter((x): x is MethodSlice => x != null);
+  }
+  const out: MethodSlice[] = [];
+  if (m.topsis?.length) out.push({ method: 'TOPSIS', ranking: m.topsis });
+  if (m.wsm?.length) out.push({ method: 'WSM', ranking: m.wsm });
+  if (m.vikor?.length) out.push({ method: 'VIKOR', ranking: m.vikor });
+  return out;
 }

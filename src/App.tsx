@@ -683,10 +683,10 @@ export default function App() {
         throw new Error('Ответ анализа без ранжирования');
       }
       const mcdmParams: Record<string, unknown> = {
-        samples: normalized.samples,
-        weightMeans: normalized.weightMeans,
         ...(normalized.mcdmParams ?? {}),
+        samples: normalized.samples,
         seed: normalized.mcdmParams?.seed ?? 42,
+        weightMeans: normalized.weightMeans,
         engine: 'MCDM (Monte-Carlo / SMAA-lite + TOPSIS-like)',
       };
       const record: AuditRecord = {
