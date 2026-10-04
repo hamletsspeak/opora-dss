@@ -1,6 +1,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { SessionState } from '../shared/types.js';
-import { runRobustMcdm, isAnalysisReady } from '../shared/mcdm.js';
+import type { ChatMessage, SessionState } from '../shared/types.js';
+import {
+  DEFAULT_MCDM_SAMPLES,
+  DEFAULT_MCDM_SEED,
+  runRobustMcdm,
+  isAnalysisReady,
+} from '../shared/mcdm.js';
+import { buildAuditRecord, globalAuditStore } from '../shared/audit.js';
 import { explainResult } from '../server/agent.js';
 import {
   getApiKey,
@@ -19,7 +25,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
   try {
-    const body = parseBody<{ session?: SessionState }>(req);
+    const body = parseBody<{
+      session?: SessionState;
+      messages?: ChatMessage[];
+      samples?: number;
+      seed?: number;
+    }>(req);
     const session = body.session;
     if (!session || !isAnalysisReady(session)) {
       res.status(400).json({
@@ -28,7 +39,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       return;
     }
-    const analysis = runRobustMcdm(session, 2000, 42);
+    const samples =
+      typeof body.samples === 'number' && body.samples > 0
+        ? Math.min(10_000, Math.floor(body.samples))
+        : DEFAULT_MCDM_SAMPLES;
+    const seed =
+      typeof body.seed === 'number' && Number.isFinite(body.seed)
+        ? Math.floor(body.seed)
+        : DEFAULT_MCDM_SEED;
+
+    const analysis = runRobustMcdm(session, samples, seed);
     let explanation = analysis.sensitivityNote;
     const key = getApiKey();
     if (key) {
@@ -44,16 +64,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               expectedScore: Number(r.expectedScore.toFixed(3)),
               meanRank: Number(r.meanRank.toFixed(2)),
             })),
+            methods: {
+              topsisLeader: analysis.methods.topsis[0]?.name,
+              wsmLeader: analysis.methods.wsm[0]?.name,
+              vikorLeader: analysis.methods.vikor[0]?.name,
+            },
+            agreement: {
+              leaderMatchRate: Number(
+                analysis.agreement.leaderMatchRate.toFixed(3),
+              ),
+              pairwise: analysis.agreement.pairwiseLeaderMatch,
+            },
             sensitivityNote: analysis.sensitivityNote,
             weightMeans: analysis.weightMeans,
             samples: analysis.samples,
+            mcdmParams: analysis.mcdmParams,
           }),
         });
       } catch {
         /* keep sensitivityNote */
       }
     }
-    res.status(200).json({ analysis, explanation });
+
+    const audit = buildAuditRecord({
+      session,
+      analysis,
+      explanation,
+      messages: body.messages,
+    });
+    globalAuditStore.put(audit);
+
+    res.status(200).json({ analysis, explanation, audit });
   } catch {
     res.status(500).json({ error: 'Ошибка анализа' });
   }

@@ -68,8 +68,9 @@ sequenceDiagram
 
 1. **Выборки** — на каждой итерации семплируются веса (`weightUncertain` → priors по `importance`; точный вес фиксирован) и оценки (интервалы → семпл).  
 2. **Ранг на выборке** — нормализация min/max, TOPSIS-like score → порядок альтернатив.  
-3. **Агрегация** — `winRate` (доля выборок с 1-м местом), ожидаемый score / средний ранг.  
-4. **Чувствительность** — краткая оценка устойчивости лидера к вариации весов.
+3. **Агрегация** — `winRate` (доля выборок с 1-м местом), ожидаемый score / средний ранг; параллельно Weighted Sum и VIKOR на тех же выборках + `agreement`.  
+4. **Чувствительность** — краткая оценка устойчивости лидера (primary = TOPSIS) к вариации весов.  
+5. **Эксперимент** — фиксированный датасет и таблица `winRate`: `docs/experiment.md`.
 
 LLM **не** семплирует и **не** задаёт итоговый порядок. Seed фиксируется для воспроизводимости.
 
@@ -77,11 +78,14 @@ LLM **не** семплирует и **не** задаёт итоговый по
 
 | Файл | Назначение |
 |------|------------|
-| `shared/mcdm.ts` | `runRobustMcdm`, готовность к анализу; самотест `mcdm.selftest.ts` |
+| `shared/mcdm.ts` | `runRobustMcdm` (TOPSIS + WSM + VIKOR); самотест `mcdm.selftest.ts` |
+| `shared/audit.ts` | Audit payload + in-memory store; `api/audit.ts` |
+| `shared/experiment.ts` | Фиксированный датасет эксперимента; `docs/experiment.md` |
+| `python/mcdm/` | Порт ядра + `python/server.py` (`POST /analyze`) |
 | `server/agent.ts` | Промпт, нормализация критериев, `runAgentTurn`, `explainResult` |
 | `api/chat.ts` | Serverless-диалог; ключ только `process.env.OPENAI_API_KEY` |
-| `api/analyze.ts` | MCDM + опциональное LLM-пояснение |
-| `shared/types.ts` | Контракт сессии / результата |
+| `api/analyze.ts` | MCDM + audit + опциональное LLM-пояснение |
+| `shared/types.ts` | Контракт сессии / результата / agreement |
 | `src/App.tsx` | UI Klar; в chat — **prior** history + текущее `message` |
 
 ## 5. Ограничения MVP

@@ -1,5 +1,6 @@
 export type Direction = 'min' | 'max';
 export type Importance = 'high' | 'medium' | 'low' | 'unknown';
+export type McdmMethodId = 'topsis' | 'wsm' | 'vikor';
 
 export interface Criterion {
   id: string;
@@ -44,11 +45,49 @@ export interface RankItem {
   pWorst: number;
 }
 
+export interface MethodAgreement {
+  /** Доля выборок, где все методы дали одного лидера */
+  leaderMatchRate: number;
+  /** Попарное совпадение лидеров на выборках */
+  pairwiseLeaderMatch: {
+    topsis_wsm: number;
+    topsis_vikor: number;
+    wsm_vikor: number;
+  };
+  /** Средний ранг каждой альтернативы по методам (id → method → rank) */
+  meanRankByMethod: Record<string, Record<McdmMethodId, number>>;
+}
+
 export interface McdmResult {
+  /** Primary ranking = TOPSIS-like (backward-compatible) */
   ranking: RankItem[];
   samples: number;
   sensitivityNote: string;
   weightMeans: Record<string, number>;
+  /** Per-method rankings on the same Monte-Carlo samples */
+  methods: {
+    topsis: RankItem[];
+    wsm: RankItem[];
+    vikor: RankItem[];
+  };
+  agreement: MethodAgreement;
+  mcdmParams: { samples: number; seed: number };
+}
+
+/** Audit trail record for thesis / export */
+export interface AuditRecord {
+  id: string;
+  ts: number;
+  messages?: ChatMessage[];
+  session: SessionState;
+  mcdmParams: { samples: number; seed: number };
+  ranking: RankItem[];
+  methods?: McdmResult['methods'];
+  agreement?: MethodAgreement;
+  explanation?: string;
+  sensitivityNote?: string;
+  weightMeans?: Record<string, number>;
+  samples?: number;
 }
 
 export interface AgentResponse {

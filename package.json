@@ -11,7 +11,8 @@
     "start": "NODE_ENV=production tsx server/index.ts",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test:mcdm": "tsx shared/mcdm.selftest.ts"
+    "test:mcdm": "tsx shared/mcdm.selftest.ts",
+    "test:mcdm:py": "python3 python/selftest.py"
   },
   "dependencies": {
     "concurrently": "^10.0.5",
