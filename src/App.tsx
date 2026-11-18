@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type {
   Alternative,
   ChatMessage,
@@ -6,127 +6,104 @@ import type {
   Direction,
   Importance,
   SessionState,
-} from '../shared/types';
-import { emptySession } from '../shared/types';
+} from "../shared/types";
+import { emptySession } from "../shared/types";
+import { ProductShell } from "./components/ProductShell";
+import { InterfaceIcon } from "./components/InterfaceIcon";
 import {
   extractMethodSlices,
   normalizeAnalysis,
   type FlexibleAnalysis,
-} from './analysisCompat';
+} from "./analysisCompat";
 
-type Screen = 'hero' | 'chat' | 'results';
+type Screen = "setup" | "chat" | "results";
 
-const COACH_KEY = 'klar-coach-dismissed';
-const AUDIT_KEY = 'klar-audit-trail';
+const AUDIT_KEY = "klar-audit-trail";
 
 const EXAMPLE =
-  'Я выбираю поставщика. Есть цена, срок поставки, процент брака и минимальная партия. По цене точно сказать не могу — примерно 450–500 рублей. Цена и срок для меня наиболее важны, но насколько именно — не знаю.';
+  "Я выбираю поставщика. Есть цена, срок поставки, процент брака и минимальная партия. По цене точно сказать не могу — примерно 450–500 рублей. Цена и срок для меня наиболее важны, но насколько именно — не знаю.";
 
 const COACH_TIPS = [
   {
-    title: 'Расскажите о выборе',
-    body: 'Что решаете и что для вас важно? Можно своими словами, без таблиц.',
+    title: "Расскажите о выборе",
+    body: "Что решаете и что для вас важно? Можно своими словами, без таблиц.",
   },
   {
-    title: 'Неточность — нормально',
-    body: '«Примерно», интервалы и «не уверен» — Klar это учитывает.',
+    title: "Неточность — нормально",
+    body: "«Примерно», интервалы и «не уверен» — Klar это учитывает.",
   },
   {
-    title: 'Сравним спокойно',
-    body: 'Покажем, какой вариант чаще выигрывает, даже если данные размыты.',
+    title: "Сравним спокойно",
+    body: "Покажем, какой вариант чаще выигрывает, даже если данные размыты.",
   },
 ] as const;
 
-const HERO_LINE =
-  'Поможем выбрать спокойно, даже если цифры неточные и важность «на глаз».';
+const TEMPLATES = [
+  {
+    icon: "box",
+    title: "Выбрать поставщика",
+    description: "Цена, сроки и качество",
+    text: EXAMPLE,
+  },
+  {
+    icon: "briefcase",
+    title: "Сравнить предложения",
+    description: "Работа и новые возможности",
+    text: "Хочу сравнить предложения о работе. Для меня важны зарплата, интересные задачи, возможность работать удалённо и время на дорогу. Помоги определить критерии — затем добавлю предложения.",
+  },
+  {
+    icon: "laptop",
+    title: "Подобрать технику",
+    description: "Бюджет и характеристики",
+    text: "Выбираю ноутбук для работы. Важны цена, производительность, вес и время работы от батареи. Помоги структурировать выбор — модели и их характеристики добавлю сам.",
+  },
+] as const;
 
 const IMPORTANCE_OPTS: { value: Importance; label: string }[] = [
-  { value: 'high', label: 'важно' },
-  { value: 'medium', label: 'средне' },
-  { value: 'low', label: 'меньше' },
-  { value: 'unknown', label: 'не знаю' },
+  { value: "high", label: "важно" },
+  { value: "medium", label: "средне" },
+  { value: "low", label: "меньше" },
+  { value: "unknown", label: "не знаю" },
 ];
+
+const WIDE_QUERY = "(width > 1375px)";
+const FINE_POINTER_QUERY = "(hover: hover) and (pointer: fine)";
+
+function useMediaQuery(query: string): boolean {
+  return useSyncExternalStore(
+    (onChange) => {
+      const mql = window.matchMedia(query);
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(query).matches,
+    () => false,
+  );
+}
 
 type AuditRecord = {
   messages: ChatMessage[];
   session: SessionState;
   mcdmParams: Record<string, unknown>;
-  ranking: FlexibleAnalysis['ranking'];
+  ranking: FlexibleAnalysis["ranking"];
   explanation: string;
   ts: string;
   analysis?: FlexibleAnalysis;
 };
-
-function BrandMark({ size = 'md' }: { size?: 'sm' | 'md' | 'lg' }) {
-  return (
-    <img
-      src="/klar-logo.png"
-      alt="Klar"
-      className={`brand-mark brand-${size}`}
-      draggable={false}
-      decoding="async"
-    />
-  );
-}
-
-function Typewriter({
-  text,
-  className,
-  onDone,
-}: {
-  text: string;
-  className?: string;
-  onDone?: () => void;
-}) {
-  const [n, setN] = useState(0);
-  const [done, setDone] = useState(false);
-  const onDoneRef = useRef(onDone);
-  onDoneRef.current = onDone;
-
-  useEffect(() => {
-    const reduce =
-      typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (reduce) {
-      setN(text.length);
-      setDone(true);
-      onDoneRef.current?.();
-      return;
-    }
-    setN(0);
-    setDone(false);
-    let i = 0;
-    const id = window.setInterval(() => {
-      i += 1;
-      setN(i);
-      if (i >= text.length) {
-        window.clearInterval(id);
-        setDone(true);
-        onDoneRef.current?.();
-      }
-    }, 26);
-    return () => window.clearInterval(id);
-  }, [text]);
-
-  return (
-    <p className={className} aria-label={text}>
-      <span>{text.slice(0, n)}</span>
-      <span className={`type-caret${done ? ' idle' : ''}`} aria-hidden />
-    </p>
-  );
-}
 
 /** Same-origin `/api/*` on Vercel (no absolute base URL needed). */
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   let res: Response;
   try {
     res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
   } catch {
-    throw new Error('Нет ответа от /api — проверьте деплой serverless-функций.');
+    throw new Error(
+      "Нет ответа от /api — проверьте деплой serverless-функций.",
+    );
   }
   const text = await res.text();
   let data: { error?: string } | null = null;
@@ -141,17 +118,6 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     throw new Error(data?.error || `Ошибка API (${res.status})`);
   }
   return data as T;
-}
-
-function Atmosphere() {
-  return (
-    <div className="aurora" aria-hidden>
-      <i className="blob a" />
-      <i className="blob b" />
-      <i className="blob c" />
-      <i className="mesh" />
-    </div>
-  );
 }
 
 function TypingDots() {
@@ -171,7 +137,11 @@ function TypingDots() {
 function TipHint({ label, text }: { label: string; text: string }) {
   return (
     <span className="tip-wrap">
-      <button type="button" className="tip-btn" aria-label={`Подсказка: ${label}`}>
+      <button
+        type="button"
+        className="tip-btn"
+        aria-label={`Подсказка: ${label}`}
+      >
         ?
       </button>
       <span className="tip-bubble" role="tooltip">
@@ -181,51 +151,17 @@ function TipHint({ label, text }: { label: string; text: string }) {
   );
 }
 
-function AppHeader({
-  leading,
-  trailing,
-  className = '',
-  compact = false,
-}: {
-  leading?: ReactNode;
-  trailing?: ReactNode;
-  className?: string;
-  /** Sheet / overlay: no safe-area top padding */
-  compact?: boolean;
-}) {
-  return (
-    <header
-      className={`nav-bar nav-island-bar${compact ? ' nav-in-sheet' : ''} ${className}`.trim()}
-      aria-label="Klar"
-    >
-      <div className="nav-side leading">{leading ?? <span className="nav-slot" />}</div>
-      <div className="nav-island">
-        <BrandMark size="sm" />
-      </div>
-      <div className="nav-side trailing">{trailing ?? <span className="nav-slot" />}</div>
-    </header>
-  );
-}
-
-function readCoachDismissed(): boolean {
-  try {
-    return localStorage.getItem(COACH_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
 function slugId(name: string, i: number): string {
   const base = name
     .toLowerCase()
-    .replace(/[^a-zа-яё0-9]+/gi, '_')
-    .replace(/^_|_$/g, '')
+    .replace(/[^a-zа-яё0-9]+/gi, "_")
+    .replace(/^_|_$/g, "")
     .slice(0, 24);
   return base || `alt_${i + 1}`;
 }
 
 function parseScoreToken(tok: string): number | [number, number] | null {
-  const t = tok.trim().replace(',', '.');
+  const t = tok.trim().replace(",", ".");
   if (!t) return null;
   const range = t.match(/^(-?\d+(?:\.\d+)?)\s*[-–—]\s*(-?\d+(?:\.\d+)?)$/);
   if (range) {
@@ -248,12 +184,12 @@ function parseAlternativesPaste(
     .map((l) => l.trim())
     .filter(Boolean);
   if (!lines.length) {
-    return { alternatives: [], error: 'Вставьте хотя бы одну строку.' };
+    return { alternatives: [], error: "Вставьте хотя бы одну строку." };
   }
   if (criteria.length < 1) {
     return {
       alternatives: [],
-      error: 'Сначала нужны критерии — расскажите, что важно.',
+      error: "Сначала нужны критерии — расскажите, что важно.",
     };
   }
   const alternatives: Alternative[] = [];
@@ -267,14 +203,17 @@ function parseAlternativesPaste(
       };
     }
     const name = m[1].trim();
-    const parts = m[2].split(/[,;|]/).map((p) => p.trim()).filter(Boolean);
+    const parts = m[2]
+      .split(/[,;|]/)
+      .map((p) => p.trim())
+      .filter(Boolean);
     if (parts.length !== criteria.length) {
       return {
         alternatives: [],
         error: `«${name}»: нужно ${criteria.length} значений (по числу критериев), сейчас ${parts.length}.`,
       };
     }
-    const scores: Alternative['scores'] = {};
+    const scores: Alternative["scores"] = {};
     for (let j = 0; j < criteria.length; j++) {
       const v = parseScoreToken(parts[j]);
       if (v == null) {
@@ -290,7 +229,7 @@ function parseAlternativesPaste(
   if (alternatives.length < 2) {
     return {
       alternatives: [],
-      error: 'Нужны минимум два варианта для сравнения.',
+      error: "Нужны минимум два варианта для сравнения.",
     };
   }
   return { alternatives };
@@ -308,15 +247,17 @@ function matrixComplete(session: SessionState): boolean {
 
 function persistAudit(record: AuditRecord) {
   try {
-    const prev = JSON.parse(localStorage.getItem(AUDIT_KEY) || '[]') as AuditRecord[];
+    const prev = JSON.parse(
+      localStorage.getItem(AUDIT_KEY) || "[]",
+    ) as AuditRecord[];
     const next = [record, ...(Array.isArray(prev) ? prev : [])].slice(0, 20);
     localStorage.setItem(AUDIT_KEY, JSON.stringify(next));
   } catch {
     /* ignore quota */
   }
-  void fetch('/api/audit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  void fetch("/api/audit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(record),
   }).catch(() => {
     /* optional demo endpoint */
@@ -325,34 +266,46 @@ function persistAudit(record: AuditRecord) {
 
 function downloadJson(filename: string, data: unknown) {
   const blob = new Blob([JSON.stringify(data, null, 2)], {
-    type: 'application/json',
+    type: "application/json",
   });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = url;
   a.download = filename;
+  a.rel = "noopener";
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  // Revoking synchronously can cancel the download in Firefox/Safari.
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function WinRateChart({ ranking }: { ranking: FlexibleAnalysis['ranking'] }) {
-  const max = Math.max(...ranking.map((r) => r.winRate), 0.01);
+function downloadAudit(record: AuditRecord) {
+  downloadJson(
+    `klar-audit-${record.ts.slice(0, 19).replace(/:/g, "")}.json`,
+    record,
+  );
+}
+
+function WinRateChart({ ranking }: { ranking: FlexibleAnalysis["ranking"] }) {
   return (
     <div className="win-chart" role="img" aria-label="Доля побед по вариантам">
       {ranking.map((r, i) => {
         const pct = r.winRate * 100;
-        const h = Math.max(8, (r.winRate / max) * 100);
+        const h = Math.max(0, Math.min(100, pct));
         return (
           <div key={r.alternativeId} className="win-col">
             <div className="win-col-track">
               <i
-                className={i === 0 ? 'lead' : undefined}
+                className={i === 0 ? "lead" : undefined}
                 style={{ height: `${h}%` }}
                 title={`${r.name}: ${pct.toFixed(0)}%`}
               />
             </div>
             <span className="win-col-pct caption">{pct.toFixed(0)}%</span>
-            <span className="win-col-name caption">{r.name}</span>
+            <span className="win-col-name caption" title={r.name}>
+              {r.name}
+            </span>
           </div>
         );
       })}
@@ -364,23 +317,33 @@ function SensitivityViz({ analysis }: { analysis: FlexibleAnalysis }) {
   const leader = analysis.ranking[0];
   const runner = analysis.ranking[1];
   if (!leader) return null;
-  const leadPct = Math.round(leader.winRate * 100);
-  const runPct = runner ? Math.round(runner.winRate * 100) : 0;
-  const stable = leader.winRate >= 0.55;
+  const leadPct = Math.round(leader.pBest * 100);
+  const runPct = runner ? Math.round(runner.pBest * 100) : 0;
   return (
     <div className="sens-viz glass sheet" aria-label="Устойчивость лидера">
       <div className="sens-meter" aria-hidden>
         <i className="sens-fill" style={{ width: `${leadPct}%` }} />
-        <i className="sens-mark" style={{ left: '55%' }} />
       </div>
       <p className="sens-caption caption">
-        {stable
-          ? `Лидер устойчив: ${leader.name} ≈${leadPct}% побед`
-          : `Лидер спорный: ${leader.name} ≈${leadPct}%${
-              runner ? `, рядом ${runner.name} ≈${runPct}%` : ''
-            }`}
-        <span className="sens-threshold"> · порог устойчивости 55%</span>
+        {`${leader.name} занимает первое место в ${leadPct}% симуляций.${runner ? ` ${runner.name} — в ${runPct}%.` : ""}`}
       </p>
+      {analysis.sensitivity?.critical?.length ? (
+        <ul className="caption">
+          {analysis.sensitivity.critical.map((c, i) => (
+            <li key={i}>
+              {c.label}: {c.base_value.toPrecision(4)} →{" "}
+              {c.flip_at?.toPrecision(4) ?? "нет границы"}; новый лидер:{" "}
+              {c.new_leader_names.join(", ")}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="caption">
+          Границы смены лидера для этого результата не найдены или не
+          рассчитаны.
+        </p>
+      )}
+      <a href="/lab#sensitivity">Исследовать параметры в Лаборатории →</a>
     </div>
   );
 }
@@ -392,7 +355,7 @@ function MethodCompare({ analysis }: { analysis: FlexibleAnalysis }) {
     analysis.agreement?.leaderMatchRate ??
     methods.find((m) => m.leaderMatchRate != null)?.leaderMatchRate;
   return (
-    <div className="method-block reveal-stagger">
+    <div className="method-block">
       <p className="section-label caption">
         Сравнение методов
         <TipHint
@@ -412,10 +375,10 @@ function MethodCompare({ analysis }: { analysis: FlexibleAnalysis }) {
             <div key={m.method} className="method-card">
               <p className="method-name caption">{m.method}</p>
               <p className="method-leader body">
-                {top ? top.name : '—'}
+                {top ? top.name : "—"}
                 {top ? (
                   <span className="caption">
-                    {' '}
+                    {" "}
                     · {(top.winRate * 100).toFixed(0)}%
                   </span>
                 ) : null}
@@ -436,65 +399,65 @@ function MethodCompare({ analysis }: { analysis: FlexibleAnalysis }) {
 }
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('hero');
+  const [screen, setScreen] = useState<Screen>("setup");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [session, setSession] = useState<SessionState>(emptySession());
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [offerDemo, setOfferDemo] = useState(false);
   const [canAnalyze, setCanAnalyze] = useState(false);
   const [analysis, setAnalysis] = useState<FlexibleAnalysis | null>(null);
-  const [explanation, setExplanation] = useState('');
+  const [explanation, setExplanation] = useState("");
+  const [explanationMeta, setExplanationMeta] = useState<{
+    source: "llm" | "deterministic";
+    provider_notice?: string;
+    rejected?: { reason: string } | null;
+  } | null>(null);
   const [lastAudit, setLastAudit] = useState<AuditRecord | null>(null);
   const [sessionConfirmed, setSessionConfirmed] = useState(false);
-  const [altPaste, setAltPaste] = useState('');
-  const [altError, setAltError] = useState('');
+  const [altPaste, setAltPaste] = useState("");
+  const [altError, setAltError] = useState("");
   const [altOpen, setAltOpen] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
   const [coachStep, setCoachStep] = useState(0);
-  const [introReady, setIntroReady] = useState(false);
-  /** Auto-coach once per welcome visit (QA: no reopen after dismiss) */
-  const [coachAutoShown, setCoachAutoShown] = useState(false);
-  /** Bumps on home reset so welcome remounts with current layout/animations */
-  const [welcomeKey, setWelcomeKey] = useState(0);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [taskOpen, setTaskOpen] = useState(false);
+  const wide = useMediaQuery(WIDE_QUERY);
+  const finePointer = useMediaQuery(FINE_POINTER_QUERY);
+  const messagesRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const coachSheetRef = useRef<HTMLDivElement>(null);
   const coachRestoreFocus = useRef<HTMLElement | null>(null);
 
-  const hasUserMessage = messages.some((m) => m.role === 'user');
-  const showExample = !hasUserMessage && !session.usedDemoData;
+  const hasUserMessage = messages.some((m) => m.role === "user");
   const showDemoChip =
     !session.usedDemoData &&
     (offerDemo || session.criteria.length >= 2) &&
     !canAnalyze;
   const showSessionMeta =
     session.criteria.length > 0 || session.alternatives.length > 0;
-  const showAltHelper = session.criteria.length >= 2 && (altOpen || !canAnalyze || offerDemo);
+  const showAltHelper =
+    session.criteria.length >= 2 && (altOpen || !canAnalyze || offerDemo);
 
   useEffect(() => {
-    if (screen !== 'chat') return;
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [messages, busy, screen, offerDemo, canAnalyze, sessionConfirmed]);
+    if (screen !== "chat") return;
+    // scrollIntoView would also scroll overflow-hidden ancestors and shift the layout
+    const el = messagesRef.current;
+    el?.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [messages, busy, screen, offerDemo, canAnalyze, sessionConfirmed, wide]);
+
+  useEffect(() => {
+    if (screen !== "chat" || !finePointer) return;
+    textareaRef.current?.focus({ preventScroll: true });
+  }, [screen, finePointer]);
 
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(Math.max(el.scrollHeight, 36), 112)}px`;
+    const scale =
+      parseFloat(getComputedStyle(document.documentElement).fontSize) / 16;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(Math.max(el.scrollHeight, 36 * scale), 112 * scale)}px`;
   }, [draft]);
-
-  useEffect(() => {
-    if (screen !== 'hero') return;
-    if (readCoachDismissed()) return;
-    if (!introReady) return;
-    if (coachAutoShown) return;
-    const t = window.setTimeout(() => {
-      setCoachOpen(true);
-      setCoachAutoShown(true);
-    }, 380);
-    return () => window.clearTimeout(t);
-  }, [screen, introReady, coachAutoShown]);
 
   useEffect(() => {
     if (!coachOpen) return;
@@ -509,18 +472,18 @@ export default function App() {
             sheet.querySelectorAll<HTMLElement>(
               'button, [href], input, textarea, select, [tabindex]:not([tabindex="-1"])',
             ),
-          ).filter((el) => !el.hasAttribute('disabled'))
+          ).filter((el) => !el.hasAttribute("disabled"))
         : [];
     const list = focusables();
     list[0]?.focus();
 
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         e.preventDefault();
-        dismissCoach(false);
+        dismissCoach();
         return;
       }
-      if (e.key !== 'Tab' || !sheet) return;
+      if (e.key !== "Tab" || !sheet) return;
       const items = focusables();
       if (items.length === 0) return;
       const first = items[0];
@@ -533,27 +496,31 @@ export default function App() {
         first.focus();
       }
     }
-    document.addEventListener('keydown', onKey);
+    document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener('keydown', onKey);
+      document.removeEventListener("keydown", onKey);
       coachRestoreFocus.current?.focus?.();
     };
   }, [coachOpen]);
 
-  function dismissCoach(forever: boolean) {
+  function dismissCoach() {
     setCoachOpen(false);
     setCoachStep(0);
-    setCoachAutoShown(true);
-    if (forever) {
-      try {
-        localStorage.setItem(COACH_KEY, '1');
-      } catch {
-        /* ignore */
-      }
-    }
+  }
+
+  function openHelp() {
+    setCoachStep(0);
+    setCoachOpen(true);
+  }
+
+  function invalidateResults() {
+    setAnalysis(null);
+    setExplanation("");
+    setLastAudit(null);
   }
 
   function patchCriterion(id: string, patch: Partial<Criterion>) {
+    invalidateResults();
     setSession((s) => ({
       ...s,
       criteria: s.criteria.map((c) => (c.id === id ? { ...c, ...patch } : c)),
@@ -567,15 +534,16 @@ export default function App() {
       setAltError(parsed.error);
       return;
     }
-    setAltError('');
+    setAltError("");
+    invalidateResults();
     setSession((s) => ({
       ...s,
       alternatives: parsed.alternatives,
       usedDemoData: false,
       missing: s.missing.filter(
         (m) =>
-          !m.toLowerCase().includes('альтернатив') &&
-          !m.toLowerCase().includes('вариант'),
+          !m.toLowerCase().includes("альтернатив") &&
+          !m.toLowerCase().includes("вариант"),
       ),
       readyForAnalysis: matrixComplete({
         ...s,
@@ -593,8 +561,8 @@ export default function App() {
     setMessages((m) => [
       ...m,
       {
-        role: 'assistant',
-        content: `Принял ваши варианты (${parsed.alternatives.map((a) => a.name).join(', ')}). Проверьте критерии ниже и подтвердите данные перед сравнением.`,
+        role: "assistant",
+        content: `Принял ваши варианты (${parsed.alternatives.map((a) => a.name).join(", ")}). Проверьте критерии ниже и подтвердите данные перед сравнением.`,
       },
     ]);
   }
@@ -603,8 +571,13 @@ export default function App() {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
     setBusy(true);
-    setDraft('');
-    const nextMessages = [...messages, { role: 'user' as const, content: trimmed }];
+    setScreen("chat");
+    setTaskOpen(false);
+    setDraft("");
+    const nextMessages = [
+      ...messages,
+      { role: "user" as const, content: trimmed },
+    ];
     setMessages(nextMessages);
     try {
       const data = await postJson<{
@@ -612,29 +585,30 @@ export default function App() {
         session: SessionState;
         offerDemo: boolean;
         canAnalyze: boolean;
-      }>('/api/chat', {
+      }>("/api/chat", {
         message: trimmed,
         // prior history only — current turn is `message` (QA: avoid duplicate user turn)
         messages,
         session,
       });
+      invalidateResults();
       setSession(data.session);
       setOfferDemo(data.offerDemo);
       setCanAnalyze(data.canAnalyze);
       setSessionConfirmed(false);
       setMessages([
         ...nextMessages,
-        { role: 'assistant', content: data.reply },
+        { role: "assistant", content: data.reply },
       ]);
     } catch (e) {
-      const detail = e instanceof Error ? e.message : '';
+      const detail = e instanceof Error ? e.message : "";
       setMessages([
         ...nextMessages,
         {
-          role: 'assistant',
+          role: "assistant",
           content: detail
             ? `Не удалось связаться с агентом: ${detail}`
-            : 'Не удалось связаться с агентом. Проверьте /api/health и OPENAI_API_KEY на Vercel.',
+            : "Не удалось связаться с агентом. Проверьте /api/health и OPENAI_API_KEY на Vercel.",
         },
       ]);
     } finally {
@@ -650,20 +624,24 @@ export default function App() {
         session: SessionState;
         canAnalyze: boolean;
         reply: string;
-      }>('/api/demo', { session });
+      }>("/api/demo", { session });
+      invalidateResults();
       setSession(data.session);
       setCanAnalyze(data.canAnalyze);
       setOfferDemo(false);
       setSessionConfirmed(false);
       setMessages((m) => [
         ...m,
-        { role: 'user', content: 'Подставить демо-варианты' },
-        { role: 'assistant', content: data.reply },
+        { role: "user", content: "Подставить демо-варианты" },
+        { role: "assistant", content: data.reply },
       ]);
     } catch {
       setMessages((m) => [
         ...m,
-        { role: 'assistant', content: 'Не удалось загрузить демо. Попробуйте ещё раз.' },
+        {
+          role: "assistant",
+          content: "Не удалось загрузить демо. Попробуйте ещё раз.",
+        },
       ]);
     } finally {
       setBusy(false);
@@ -677,100 +655,67 @@ export default function App() {
       const data = await postJson<{
         analysis: unknown;
         explanation: string;
-      }>('/api/analyze', { session });
+        explanation_meta?: {
+          source: "llm" | "deterministic";
+          provider_notice?: string;
+          rejected?: { reason: string } | null;
+        };
+      }>("/api/analyze", { session });
       const normalized = normalizeAnalysis(data.analysis);
       if (!normalized) {
-        throw new Error('Ответ анализа без ранжирования');
+        throw new Error("Ответ анализа без ранжирования");
       }
       const mcdmParams: Record<string, unknown> = {
         ...(normalized.mcdmParams ?? {}),
         samples: normalized.samples,
         seed: normalized.mcdmParams?.seed ?? 42,
         weightMeans: normalized.weightMeans,
-        engine: 'MCDM (Monte-Carlo / SMAA-lite + TOPSIS-like)',
+        engine: "MCDM (Monte-Carlo / SMAA-lite + TOPSIS-like)",
       };
       const record: AuditRecord = {
         messages,
         session,
         mcdmParams,
         ranking: normalized.ranking,
-        explanation: data.explanation ?? '',
+        explanation: data.explanation ?? "",
         ts: new Date().toISOString(),
         analysis: normalized,
       };
       persistAudit(record);
       setLastAudit(record);
       setAnalysis(normalized);
-      setExplanation(data.explanation ?? '');
-      setScreen('results');
+      setExplanation(data.explanation ?? "");
+      setExplanationMeta(data.explanation_meta ?? null);
+      setScreen("results");
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Не удалось сравнить варианты';
-      setMessages((m) => [...m, { role: 'assistant', content: msg }]);
+      const msg =
+        e instanceof Error ? e.message : "Не удалось сравнить варианты";
+      setMessages((m) => [...m, { role: "assistant", content: msg }]);
+      setTaskOpen(false);
     } finally {
       setBusy(false);
     }
-  }
-
-  function start() {
-    setCoachOpen(false);
-    setScreen('chat');
-    setMessages([
-      {
-        role: 'assistant',
-        content:
-          'Расскажите о выборе своими словами: что важно, какие есть варианты. Можно «примерно» и с интервалами — так даже удобнее.',
-      },
-    ]);
   }
 
   function resetAll() {
     setMessages([]);
     setSession(emptySession());
     setAnalysis(null);
-    setExplanation('');
+    setExplanation("");
     setLastAudit(null);
     setCanAnalyze(false);
     setSessionConfirmed(false);
-    setAltPaste('');
-    setAltError('');
+    setAltPaste("");
+    setAltError("");
     setAltOpen(false);
     setOfferDemo(false);
-    setDraft('');
+    setDraft("");
     setBusy(false);
-    // QA blocker: never open coach immediately — wait for typewriter / useEffect
     setCoachOpen(false);
     setCoachStep(0);
-    setCoachAutoShown(false);
-    setIntroReady(false);
-    setWelcomeKey((k) => k + 1);
-    setScreen('hero');
+    setTaskOpen(false);
+    setScreen("setup");
   }
-
-  const helpBtn = (
-    <button
-      type="button"
-      className="nav-help"
-      onClick={() => {
-        setCoachStep(0);
-        setCoachOpen(true);
-        setCoachAutoShown(true);
-      }}
-      aria-label="Подсказки"
-    >
-      ?
-    </button>
-  );
-
-  const homeBtn = (
-    <button
-      type="button"
-      className="nav-home"
-      onClick={resetAll}
-      aria-label="На главную"
-    >
-      Домой
-    </button>
-  );
 
   const coachCard = coachOpen && (
     <div
@@ -778,18 +723,30 @@ export default function App() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="coach-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) dismissCoach();
+      }}
     >
-      <div
-        className="coach-sheet glass sheet reveal-item d0"
-        ref={coachSheetRef}
-      >
-        <AppHeader compact className="coach-header" />
+      <div className="coach-sheet glass sheet" ref={coachSheetRef}>
+        <div className="coach-heading">
+          <span className="assistant-emblem">
+            <InterfaceIcon name="spark" />
+          </span>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={dismissCoach}
+            aria-label="Закрыть подсказки"
+          >
+            <InterfaceIcon name="close" />
+          </button>
+        </div>
         <p className="coach-kicker caption" id="coach-title">
           Как это работает
         </p>
         <div className="coach-steps" aria-hidden>
           {COACH_TIPS.map((_, i) => (
-            <i key={i} className={i === coachStep ? 'on' : undefined} />
+            <i key={i} className={i === coachStep ? "on" : undefined} />
           ))}
         </div>
         <h2 className="coach-title">{COACH_TIPS[coachStep].title}</h2>
@@ -798,7 +755,7 @@ export default function App() {
           {coachStep < COACH_TIPS.length - 1 ? (
             <button
               type="button"
-              className="btn-primary glass-cta"
+              className="btn-primary"
               onClick={() => setCoachStep((s) => s + 1)}
             >
               Дальше
@@ -806,23 +763,16 @@ export default function App() {
           ) : (
             <button
               type="button"
-              className="btn-primary glass-cta"
-              onClick={() => dismissCoach(false)}
+              className="btn-primary"
+              onClick={() => dismissCoach()}
             >
               Понятно
             </button>
           )}
           <button
             type="button"
-            className="coach-link"
-            onClick={() => dismissCoach(true)}
-          >
-            Больше не показывать
-          </button>
-          <button
-            type="button"
             className="coach-link subtle"
-            onClick={() => dismissCoach(false)}
+            onClick={() => dismissCoach()}
           >
             Закрыть
           </button>
@@ -831,482 +781,721 @@ export default function App() {
     </div>
   );
 
-  if (screen === 'hero') {
-    return (
-      <div className="ios-root" key={`welcome-${welcomeKey}`}>
-        <Atmosphere />
-        <div className="ios-shell hero-shell">
-          <AppHeader className="reveal-item d0" leading={helpBtn} />
-          <main className="hero-body">
-            <div className="hero-copy">
-              <Typewriter
-                key={`tw-${welcomeKey}`}
-                text={HERO_LINE}
-                className="hero-sub body reveal-item d1"
-                onDone={() => setIntroReady(true)}
-              />
-            </div>
-            <div className="hero-bottom">
-              <ol className="inset-group hero-group glass sheet steps-list reveal-item d2">
-                <li>
-                  <span className="step-n">1</span>
-                  <span className="row-label">Расскажите о выборе</span>
-                </li>
-                <li>
-                  <span className="step-n">2</span>
-                  <span className="row-label">Добавьте варианты</span>
-                </li>
-                <li>
-                  <span className="step-n">3</span>
-                  <span className="row-label">Сравним устойчиво</span>
-                </li>
-              </ol>
-              <button
-                type="button"
-                className="btn-primary glass-cta reveal-item d3"
-                onClick={start}
-              >
-                Начать
-              </button>
-            </div>
-          </main>
-        </div>
-        {coachCard}
-      </div>
-    );
-  }
+  const shellProps = {
+    stage:
+      screen === "results"
+        ? ("results" as const)
+        : hasUserMessage
+          ? ("chat" as const)
+          : ("setup" as const),
+    title:
+      screen === "results"
+        ? "Результаты"
+        : hasUserMessage
+          ? "Диалог"
+          : "Новое решение",
+    onNew: resetAll,
+    onChat: hasUserMessage
+      ? () => {
+          setTaskOpen(false);
+          setScreen("chat");
+        }
+      : undefined,
+    onResults: busy ? undefined : () => setScreen("results"),
+    hasResults: analysis !== null,
+    onHelp: openHelp,
+    busy,
+  };
 
-  if (screen === 'results' && analysis) {
+  if (screen === "results" && analysis) {
     const contextLabel =
       session.context?.trim() ||
-      (session.usedDemoData ? 'Выбор поставщика' : 'Ваш выбор');
+      (session.usedDemoData ? "Выбор поставщика" : "Ваш выбор");
     const leader = analysis.ranking[0];
 
     return (
-      <div className="ios-root">
-        <Atmosphere />
-        <div className="ios-shell results-shell">
-          <AppHeader
-            className="reveal-item d0"
-            leading={
-              <button
-                type="button"
-                className="nav-back"
-                onClick={() => setScreen('chat')}
-              >
-                ‹ Диалог
-              </button>
-            }
-            trailing={
-              lastAudit ? (
-                <button
-                  type="button"
-                  className="nav-export"
-                  onClick={() =>
-                    downloadJson(
-                      `klar-audit-${lastAudit.ts.slice(0, 19).replace(/:/g, '')}.json`,
-                      lastAudit,
-                    )
-                  }
-                >
-                  JSON
-                </button>
-              ) : null
-            }
-          />
-
-          <div className="results-scroll">
-            <h1 className="large-title compact reveal-item d1">Итог сравнения</h1>
-            <p className="section-foot caption reveal-item d1">
-              {contextLabel}
-              {session.usedDemoData ? ' · демо-варианты' : ''}
-            </p>
-
-            <p className="mcdm-badge caption reveal-item d1" role="note">
-              Цифры ниже — из робастного MCDM (Monte-Carlo), не из ответа LLM.
-              Текст «простыми словами» — пояснение агента.
-            </p>
-
-            {leader && (
-              <p className="leader-plain body reveal-item d2">
-                Чаще всего выигрывает <strong>{leader.name}</strong> — примерно в{' '}
-                {(leader.winRate * 100).toFixed(0)}% проверок. Это не «гарантия»,
-                а насколько вариант устойчив, когда данные и важность чуть
-                меняются.
+      <ProductShell {...shellProps}>
+        <main className="results-scroll">
+          <div className="results-inner">
+            <div className="results-head">
+              <p className="eyebrow">РЕЗУЛЬТАТЫ СРАВНЕНИЯ</p>
+              <h1 className="large-title compact">Итог сравнения</h1>
+              <p className="section-foot caption">
+                {contextLabel}
+                {session.usedDemoData ? " · демо-варианты" : ""}
               </p>
-            )}
-
-            <p className="section-label caption reveal-item d2">
-              Как часто побеждает
-              <TipHint
-                label="Как часто побеждает"
-                text="Мы много раз «переигрываем» сравнение со слегка разными цифрами. Процент — доля раз, когда вариант оказался лучшим."
-              />
-            </p>
-
-            <div className="win-chart-wrap glass sheet reveal-item d3">
-              <WinRateChart ranking={analysis.ranking} />
+              <p className="mcdm-badge caption" role="note">
+                Результат рассчитан по вашим критериям с учётом
+                неопределённости. Частота побед показывает, насколько устойчив
+                выбор.
+              </p>
             </div>
 
-            <ol className="inset-group rank-group glass sheet results-stagger">
-              {analysis.ranking.map((r, i) => (
-                <li
-                  key={r.alternativeId}
-                  className={i === 0 ? 'is-lead' : undefined}
-                  style={{ animationDelay: `${0.08 + i * 0.07}s` }}
-                >
-                  <span className="rank-n">{i + 1}</span>
-                  <div className="rank-body">
-                    <div className="rank-top">
-                      <span className="rank-name">{r.name}</span>
-                      <span className="rank-pct caption">
-                        {(r.winRate * 100).toFixed(0)}% раз
-                      </span>
-                    </div>
-                    <div
-                      className="rank-bar"
-                      title={`Обычный балл ${r.expectedScore.toFixed(3)}`}
-                    >
-                      <i style={{ width: `${Math.max(3, r.winRate * 100)}%` }} />
-                    </div>
-                    <div className="rank-meta caption">
-                      обычно на месте ≈{r.meanRank.toFixed(1)}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ol>
-
-            <p className="section-label caption reveal-item d4">Чувствительность</p>
-            <div className="reveal-item d4">
-              <SensitivityViz analysis={analysis} />
+            <div className="result-metrics">
+              <div className="result-leader">
+                <span className="result-leader-icon">
+                  <InterfaceIcon name="check" size={24} />
+                </span>
+                <div>
+                  <p className="caption">Лидер сравнения</p>
+                  <h2>{leader?.name ?? "—"}</h2>
+                </div>
+                <span className="leader-percent">
+                  {((leader?.winRate ?? 0) * 100).toFixed(0)}%
+                  <small>побед в симуляциях</small>
+                </span>
+              </div>
+              <div className="result-stat">
+                <span>Альтернативы</span>
+                <strong>{analysis.ranking.length}</strong>
+              </div>
+              <div className="result-stat">
+                <span>Критерии</span>
+                <strong>{session.criteria.length}</strong>
+              </div>
+              <div className="result-stat">
+                <span>Симуляции</span>
+                <strong>{analysis.samples.toLocaleString("ru-RU")}</strong>
+              </div>
             </div>
-            <p className="footnote body reveal-item d4">{analysis.sensitivityNote}</p>
-
-            <MethodCompare analysis={analysis} />
-
-            {explanation && (
-              <>
-                <p className="section-label caption reveal-item d4">
-                  Простыми словами
-                  <span className="llm-tag">LLM</span>
+            <div className="results-grid">
+              <section className="results-col" aria-label="Рейтинг вариантов">
+                <p className="section-label caption">
+                  Как часто побеждает
+                  <TipHint
+                    label="Как часто побеждает"
+                    text="Мы много раз «переигрываем» сравнение со слегка разными цифрами. Процент — доля раз, когда вариант оказался лучшим."
+                  />
                 </p>
-                <p className="footnote explain body reveal-item d4">{explanation}</p>
-              </>
-            )}
 
-            <div className="results-actions reveal-item d4">
-              {lastAudit && (
-                <button
-                  type="button"
-                  className="btn-secondary glass"
-                  onClick={() =>
-                    downloadJson(
-                      `klar-audit-${lastAudit.ts.slice(0, 19).replace(/:/g, '')}.json`,
-                      lastAudit,
-                    )
-                  }
-                >
-                  Скачать аудит (JSON)
-                </button>
-              )}
-              <button
-                type="button"
-                className="btn-secondary glass"
-                onClick={resetAll}
+                <div className="win-chart-wrap glass sheet">
+                  <WinRateChart ranking={analysis.ranking} />
+                </div>
+
+                <ol className="inset-group rank-group glass sheet">
+                  {analysis.ranking.map((r, i) => (
+                    <li
+                      key={r.alternativeId}
+                      className={i === 0 ? "is-lead" : undefined}
+                    >
+                      <span className="rank-n">{i + 1}</span>
+                      <div className="rank-body">
+                        <div className="rank-top">
+                          <span className="rank-name" title={r.name}>
+                            {r.name}
+                          </span>
+                          <span className="rank-pct caption">
+                            {(r.winRate * 100).toFixed(0)}% раз
+                          </span>
+                        </div>
+                        <div
+                          className="rank-bar"
+                          title={`Обычный балл ${r.expectedScore.toFixed(3)}`}
+                        >
+                          <i
+                            style={{
+                              width: `${Math.max(0, Math.min(100, r.winRate * 100))}%`,
+                            }}
+                          />
+                        </div>
+                        <div className="rank-meta caption">
+                          обычно на месте ≈{r.meanRank.toFixed(1)}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+
+              <section
+                className="results-col"
+                aria-label="Устойчивость и пояснения"
               >
-                Новый выбор
-              </button>
+                <p className="section-label caption">Чувствительность</p>
+                <div>
+                  <SensitivityViz analysis={analysis} />
+                </div>
+                <p className="footnote body">{analysis.sensitivityNote}</p>
+
+                <MethodCompare analysis={analysis} />
+
+                {explanation && (
+                  <>
+                    <p className="section-label caption">
+                      Простыми словами
+                      {explanationMeta && (
+                        <span className="llm-tag">
+                          {explanationMeta.source === "llm" ? "LLM" : "По расчёту"}
+                        </span>
+                      )}
+                    </p>
+                    <p className="footnote explain body">{explanation}</p>
+                    {explanationMeta?.source === "deterministic" && (
+                      <p className="footnote body">
+                        {explanationMeta.rejected
+                          ? "Ответ LLM не прошёл проверку. Показано объяснение по результатам расчёта."
+                          : "Показано объяснение по результатам расчёта без LLM."}
+                      </p>
+                    )}
+                  </>
+                )}
+
+                <div className="results-actions">
+                  {lastAudit && (
+                    <button
+                      type="button"
+                      className="btn-secondary glass"
+                      onClick={() => downloadAudit(lastAudit)}
+                    >
+                      Скачать аудит (JSON)
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-secondary glass"
+                    onClick={resetAll}
+                  >
+                    Новый выбор
+                  </button>
+                </div>
+              </section>
             </div>
           </div>
-        </div>
-      </div>
+        </main>
+        {coachCard}
+      </ProductShell>
     );
   }
 
   const missingFriendly = session.missing
     .map((m) => {
       const low = m.toLowerCase();
-      if (low.includes('альтернатив') || low.includes('вариант')) return 'варианты на выбор';
-      if (low.includes('критер')) return 'что для вас важно';
-      if (low.includes('вес') || low.includes('важност')) return 'насколько важно каждое условие';
+      if (low.includes("альтернатив") || low.includes("вариант"))
+        return "варианты на выбор";
+      if (low.includes("критер")) return "что для вас важно";
+      if (low.includes("вес") || low.includes("важност"))
+        return "насколько важно каждое условие";
       return m;
     })
-    .join(', ');
+    .join(", ");
 
-  const criteriaHint = session.criteria.map((c) => c.name).join(', ');
+  const criteriaHint = session.criteria.map((c) => c.name).join(", ");
 
-  return (
-    <div className="ios-root">
-      <Atmosphere />
-      <div className="ios-shell chat-shell">
-        <AppHeader
-          className="reveal-item d0"
-          leading={helpBtn}
-          trailing={
+  const metaChips = (
+    <>
+      {(session.context?.trim() ||
+        (session.criteria.length > 0 ? "Ваш выбор" : "")) && (
+        <span className="meta-context">
+          {session.context?.trim() || "Ваш выбор"}
+        </span>
+      )}
+      {session.criteria.map((c) => (
+        <span key={c.id}>
+          {c.name}
+          {c.importance === "high" ? " ★" : ""}
+          {c.weightUncertain ? " ±" : ""}
+          {Array.isArray(c.valueHint)
+            ? ` ${c.valueHint[0]}–${c.valueHint[1]}`
+            : ""}
+        </span>
+      ))}
+      {session.alternatives.map((a) => (
+        <span key={a.id} className="meta-alt">
+          {a.name}
+        </span>
+      ))}
+    </>
+  );
+
+  const clarifyNote = session.missing.length > 0 && !canAnalyze && (
+    <p className="clarify" role="status">
+      Чтобы продолжить, расскажите ещё про: {missingFriendly}.
+    </p>
+  );
+
+  const sidePanels = (
+    <>
+      {offerDemo && !session.usedDemoData && (
+        <div className="action-row glass sheet">
+          <p className="body">Нет своих вариантов? Подставим демо.</p>
+          <button type="button" disabled={busy} onClick={loadDemo}>
+            Демо
+          </button>
+        </div>
+      )}
+
+      {showAltHelper && (
+        <div className="alt-panel glass sheet">
+          <div className="alt-panel-head">
+            <p className="body">Свои варианты</p>
+            <button
+              type="button"
+              className="alt-toggle"
+              aria-expanded={altOpen}
+              onClick={() => setAltOpen((v) => !v)}
+            >
+              {altOpen ? "Скрыть" : "Вставить"}
+            </button>
+          </div>
+          {altOpen && (
             <>
-              {homeBtn}
-              <span className={`status-chip${busy ? ' busy' : ''}`}>
-                {busy ? 'Думаю…' : 'Agent'}
-              </span>
+              <p className="caption alt-hint">
+                Строка на вариант: «Название: {criteriaHint || "к1, к2, …"}».
+                Интервал — через дефис, например 450-500.
+              </p>
+              <textarea
+                className="alt-paste"
+                value={altPaste}
+                aria-label="Свои варианты, по строке на вариант"
+                onChange={(e) => {
+                  setAltPaste(e.target.value);
+                  setAltError("");
+                }}
+                rows={wide ? 6 : 4}
+                placeholder={`ООО Альфа: 480, 5, 1.5, 100\nИП Бета: 450-470, 8, 0.8, 200`}
+              />
+              {altError && (
+                <p className="alt-error caption" role="alert">
+                  {altError}
+                </p>
+              )}
+              <button
+                type="button"
+                className="btn-secondary glass alt-apply"
+                disabled={busy || !altPaste.trim()}
+                onClick={applyOwnAlternatives}
+              >
+                Применить варианты
+              </button>
             </>
-          }
-        />
+          )}
+        </div>
+      )}
 
-        {showSessionMeta && (
-          <div className="meta-strip reveal-item d1" aria-label="Что уже поняли">
-            {(session.context?.trim() ||
-              (session.criteria.length > 0 ? 'Ваш выбор' : '')) && (
-              <span>{session.context?.trim() || 'Ваш выбор'}</span>
-            )}
+      {canAnalyze && (
+        <div
+          className="session-review glass sheet"
+          aria-label="Проверка данных"
+        >
+          <div className="session-review-head">
+            <p className="session-review-title body">Проверьте данные</p>
+            <button
+              type="button"
+              className="alt-toggle"
+              onClick={() => setAltOpen(true)}
+            >
+              Варианты
+            </button>
+          </div>
+          <p className="caption session-review-foot">
+            Проверьте критерии и их важность. После подтверждения можно
+            запустить сравнение.
+          </p>
+          <ul className="crit-chips">
             {session.criteria.map((c) => (
-              <span key={c.id}>
-                {c.name}
-                {c.importance === 'high' ? ' ★' : ''}
-                {c.weightUncertain ? ' ±' : ''}
-                {Array.isArray(c.valueHint)
-                  ? ` ${c.valueHint[0]}–${c.valueHint[1]}`
-                  : ''}
+              <li key={c.id} className="crit-chip">
+                <input
+                  className="crit-name"
+                  value={c.name}
+                  aria-label="Название критерия"
+                  onChange={(e) =>
+                    patchCriterion(c.id, { name: e.target.value })
+                  }
+                />
+                <label className="crit-field">
+                  <span className="caption">направление</span>
+                  <select
+                    value={c.direction}
+                    onChange={(e) =>
+                      patchCriterion(c.id, {
+                        direction: e.target.value as Direction,
+                      })
+                    }
+                  >
+                    <option value="min">меньше лучше</option>
+                    <option value="max">больше лучше</option>
+                  </select>
+                </label>
+                <label className="crit-field">
+                  <span className="caption">важность</span>
+                  <select
+                    value={c.importance}
+                    onChange={(e) =>
+                      patchCriterion(c.id, {
+                        importance: e.target.value as Importance,
+                      })
+                    }
+                  >
+                    {IMPORTANCE_OPTS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="crit-check">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(c.weightUncertain)}
+                    onChange={(e) =>
+                      patchCriterion(c.id, {
+                        weightUncertain: e.target.checked,
+                      })
+                    }
+                  />
+                  <span className="caption">вес ±</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          {!sessionConfirmed ? (
+            <button
+              type="button"
+              className="btn-primary dock-cta"
+              disabled={busy}
+              onClick={() => setSessionConfirmed(true)}
+            >
+              Данные верны
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn-primary dock-cta"
+              disabled={busy}
+              onClick={() => void analyze()}
+            >
+              Сравнить варианты
+            </button>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  const messageLog = (
+    <div className="messages" role="log" aria-live="polite" ref={messagesRef}>
+      {messages.map((m, i) => (
+        <div
+          key={`${i}-${m.role}-${m.content.slice(0, 24)}`}
+          className={`message-row ${m.role}`}
+        >
+          {m.role === "assistant" && (
+            <span className="message-avatar">
+              <InterfaceIcon name="spark" size={16} />
+            </span>
+          )}
+          <div className="message-content">
+            <span className="message-author">
+              {m.role === "user" ? "Вы" : "Klar"}
+            </span>
+            <div className={`bubble ${m.role}`}>{m.content}</div>
+          </div>
+        </div>
+      ))}
+      {busy && <TypingDots />}
+    </div>
+  );
+
+  const quickRow = (showDemoChip || session.criteria.length >= 2) && (
+    <div className="quick-row">
+      {showDemoChip && !offerDemo && (
+        <button type="button" disabled={busy} onClick={loadDemo}>
+          Демо-варианты
+        </button>
+      )}
+      {session.criteria.length >= 2 && !altOpen && (
+        <button type="button" disabled={busy} onClick={() => setAltOpen(true)}>
+          Свои варианты
+        </button>
+      )}
+    </div>
+  );
+
+  const composer = (
+    <form
+      className="composer"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void send(draft);
+      }}
+    >
+      <textarea
+        ref={textareaRef}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        placeholder="Опишите выбор своими словами…"
+        aria-label="Сообщение"
+        rows={2}
+        enterKeyHint="send"
+        onKeyDown={(e) => {
+          // Enter during IME composition confirms the candidate, not the message
+          if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            void send(draft);
+          }
+        }}
+      />
+      <button
+        className="send"
+        type="submit"
+        disabled={busy || !draft.trim()}
+        aria-label="Отправить"
+        title="Отправить (Enter)"
+      >
+        <InterfaceIcon name="arrow" size={20} />
+      </button>
+    </form>
+  );
+
+  const completedSteps =
+    Number(Boolean(session.context.trim())) +
+    Number(sessionConfirmed) +
+    Number(analysis !== null);
+  const taskSummary = (
+    <>
+      <section className="task-overview">
+        <div className="panel-heading">
+          <h2>
+            <InterfaceIcon name="layers" size={18} /> Ваша задача
+          </h2>
+          <span className="draft-badge">
+            {sessionConfirmed ? "Подтверждено" : "Черновик"}
+          </span>
+        </div>
+        <div
+          className="task-progress"
+          aria-label={`Выполнено шагов: ${completedSteps} из 3`}
+        >
+          {[0, 1, 2].map((i) => (
+            <i key={i} className={i < completedSteps ? "complete" : ""} />
+          ))}
+        </div>
+        <ol className="task-steps">
+          {[
+            {
+              title: "Опишите выбор",
+              description: "Цель и то, что для вас важно",
+              done: Boolean(session.context.trim()),
+            },
+            {
+              title: "Проверьте данные",
+              description: "Варианты, критерии и их важность",
+              done: sessionConfirmed,
+            },
+            {
+              title: "Сравните варианты",
+              description: "Рейтинг и устойчивость решения",
+              done: analysis !== null,
+            },
+          ].map((step, i) => (
+            <li key={step.title} className={step.done ? "is-complete" : ""}>
+              <span className="task-step-number">
+                {step.done ? <InterfaceIcon name="check" size={14} /> : i + 1}
               </span>
-            ))}
-            {session.alternatives.map((a) => (
-              <span key={a.id}>{a.name}</span>
-            ))}
+              <div>
+                <strong>{step.title}</strong>
+                <p>{step.description}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <div className="task-counters">
+          <div>
+            <strong>
+              {session.alternatives.length.toString().padStart(2, "0")}
+            </strong>
+            <span>вариантов</span>
+          </div>
+          <div>
+            <strong>
+              {session.criteria.length.toString().padStart(2, "0")}
+            </strong>
+            <span>критериев</span>
+          </div>
+        </div>
+        {showSessionMeta ? (
+          <div className="task-extracted">
+            <p className="small-label">ИЗ ДИАЛОГА</p>
+            <div className="meta-cloud">{metaChips}</div>
+            {session.usedDemoData && (
+              <p className="demo-note">Демонстрационные данные</p>
+            )}
+          </div>
+        ) : (
+          <div className="task-placeholder">
+            <InterfaceIcon name="edit" size={19} />
+            <p>
+              Здесь появятся данные
+              <br />
+              из вашего описания
+            </p>
           </div>
         )}
-
-        {session.missing.length > 0 && !canAnalyze && (
-          <p className="clarify reveal-item d1" role="status">
-            Чтобы продолжить, расскажите ещё про: {missingFriendly}.
+      </section>
+      {clarifyNote}
+      {(offerDemo || showAltHelper || canAnalyze) && (
+        <fieldset
+          className="task-editors"
+          disabled={busy}
+          aria-label="Редактирование задачи"
+        >
+          {sidePanels}
+        </fieldset>
+      )}
+      {!canAnalyze && (
+        <div className="uncertainty-note">
+          <span className="note-icon">
+            <InterfaceIcon name="spark" size={18} />
+          </span>
+          <h3>Можно без точных цифр</h3>
+          <p>
+            Укажите диапазон или напишите «не уверен». Klar учтёт
+            неопределённость при сравнении.
           </p>
-        )}
-
-        <div className="messages reveal-item d2" role="log" aria-live="polite">
-          {messages.map((m, i) => (
-            <div
-              key={`${i}-${m.role}-${m.content.slice(0, 24)}`}
-              className={`bubble ${m.role} bubble-enter`}
-              style={{ animationDelay: `${Math.min(i, 8) * 0.04}s` }}
-            >
-              {m.content}
-            </div>
-          ))}
-          {busy && <TypingDots />}
-          <div ref={bottomRef} />
+          <span className="note-example">Например: «бюджет 450–500 тысяч»</span>
         </div>
+      )}
+      <a href="/lab" className="lab-shortcut">
+        <InterfaceIcon name="chart" size={17} />
+        <span>
+          Нужны расширенные настройки?
+          <strong>
+            Открыть лабораторию <span aria-hidden="true">↗</span>
+          </strong>
+        </span>
+      </a>
+    </>
+  );
 
-        <footer className="composer-dock glass reveal-item d3">
-          {offerDemo && !session.usedDemoData && (
-            <div className="action-row glass sheet">
-              <p className="body">Нет своих вариантов? Подставим демо.</p>
-              <button type="button" disabled={busy} onClick={loadDemo}>
-                Демо
-              </button>
-            </div>
-          )}
-
-          {showAltHelper && (
-            <div className="alt-panel glass sheet">
-              <div className="alt-panel-head">
-                <p className="body">Свои варианты</p>
-                <button
-                  type="button"
-                  className="alt-toggle"
-                  onClick={() => setAltOpen((v) => !v)}
-                >
-                  {altOpen ? 'Скрыть' : 'Вставить'}
-                </button>
-              </div>
-              {altOpen && (
-                <>
-                  <p className="caption alt-hint">
-                    Строка на вариант: «Название: {criteriaHint || 'к1, к2, …'}».
-                    Интервал — через дефис, например 450-500.
-                  </p>
-                  <textarea
-                    className="alt-paste"
-                    value={altPaste}
-                    onChange={(e) => {
-                      setAltPaste(e.target.value);
-                      setAltError('');
-                    }}
-                    rows={4}
-                    placeholder={`ООО Альфа: 480, 5, 1.5, 100\nИП Бета: 450-470, 8, 0.8, 200`}
-                  />
-                  {altError && (
-                    <p className="alt-error caption" role="alert">
-                      {altError}
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    className="btn-secondary glass alt-apply"
-                    disabled={busy || !altPaste.trim()}
-                    onClick={applyOwnAlternatives}
-                  >
-                    Применить варианты
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-
-          {canAnalyze && (
-            <div className="session-review glass sheet" aria-label="Проверка данных">
-              <div className="session-review-head">
-                <p className="session-review-title body">Проверьте данные</p>
-                <button
-                  type="button"
-                  className="alt-toggle"
-                  onClick={() => setAltOpen(true)}
-                >
-                  Варианты
-                </button>
-              </div>
-              <p className="caption session-review-foot">
-                Критерии можно поправить перед сравнением. Цифры посчитает MCDM,
-                не чат.
-              </p>
-              <ul className="crit-chips">
-                {session.criteria.map((c) => (
-                  <li key={c.id} className="crit-chip">
-                    <input
-                      className="crit-name"
-                      value={c.name}
-                      aria-label="Название критерия"
-                      onChange={(e) =>
-                        patchCriterion(c.id, { name: e.target.value })
-                      }
-                    />
-                    <label className="crit-field">
-                      <span className="caption">направление</span>
-                      <select
-                        value={c.direction}
-                        onChange={(e) =>
-                          patchCriterion(c.id, {
-                            direction: e.target.value as Direction,
-                          })
-                        }
-                      >
-                        <option value="min">меньше лучше</option>
-                        <option value="max">больше лучше</option>
-                      </select>
-                    </label>
-                    <label className="crit-field">
-                      <span className="caption">важность</span>
-                      <select
-                        value={c.importance}
-                        onChange={(e) =>
-                          patchCriterion(c.id, {
-                            importance: e.target.value as Importance,
-                          })
-                        }
-                      >
-                        {IMPORTANCE_OPTS.map((o) => (
-                          <option key={o.value} value={o.value}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="crit-check">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(c.weightUncertain)}
-                        onChange={(e) =>
-                          patchCriterion(c.id, {
-                            weightUncertain: e.target.checked,
-                          })
-                        }
-                      />
-                      <span className="caption">вес ±</span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-              {!sessionConfirmed ? (
-                <button
-                  type="button"
-                  className="btn-primary glass-cta dock-cta"
-                  disabled={busy}
-                  onClick={() => setSessionConfirmed(true)}
-                >
-                  Данные верны
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="btn-primary glass-cta dock-cta"
-                  disabled={busy}
-                  onClick={() => void analyze()}
-                >
-                  Сравнить варианты
-                </button>
-              )}
-            </div>
-          )}
-
-          {(showExample || showDemoChip) && (
-            <div className="quick-row">
-              {showExample && (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => send(EXAMPLE)}
-                >
-                  Пример: поставщик
-                </button>
-              )}
-              {showDemoChip && !offerDemo && (
-                <button type="button" disabled={busy} onClick={loadDemo}>
-                  Демо-варианты
-                </button>
-              )}
-              {session.criteria.length >= 2 && !altOpen && (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setAltOpen(true)}
-                >
-                  Свои варианты
-                </button>
-              )}
-            </div>
-          )}
-
-          <form
-            className="composer"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void send(draft);
-            }}
+  return (
+    <ProductShell {...shellProps}>
+      <main className="workspace-page">
+        <div className="workspace-title">
+          <div>
+            <p className="eyebrow">ОТ ВОПРОСА К РЕШЕНИЮ</p>
+            <h1>{hasUserMessage ? "Разберём ваш выбор" : "Новое решение"}</h1>
+            <p>Сравните варианты и найдите тот, на который можно опереться.</p>
+          </div>
+          <button type="button" className="help-link" onClick={openHelp}>
+            <InterfaceIcon name="info" size={16} /> Как это работает
+          </button>
+        </div>
+        <div
+          className="mobile-workspace-tabs"
+          role="group"
+          aria-label="Рабочая область"
+        >
+          <button
+            type="button"
+            aria-pressed={!taskOpen}
+            onClick={() => setTaskOpen(false)}
           >
-            <textarea
-              ref={textareaRef}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder="Опишите выбор своими словами…"
-              rows={1}
-              enterKeyHint="send"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  void send(draft);
-                }
-              }}
-            />
-            <button
-              className="send"
-              type="submit"
-              disabled={busy || !draft.trim()}
-              aria-label="Отправить"
-            >
-              ↑
-            </button>
-          </form>
-        </footer>
-      </div>
+            Диалог
+          </button>
+          <button
+            type="button"
+            aria-pressed={taskOpen}
+            onClick={() => setTaskOpen(true)}
+          >
+            Ваша задача{" "}
+            <span>{session.criteria.length + session.alternatives.length}</span>
+          </button>
+        </div>
+        <div className={`decision-workspace${taskOpen ? " is-task-open" : ""}`}>
+          <section
+            className={`conversation-panel${hasUserMessage ? "" : " is-empty"}`}
+            aria-label="Диалог"
+          >
+            <div className="conversation-heading">
+              <span className="assistant-avatar">
+                <InterfaceIcon name="spark" />
+              </span>
+              <div>
+                <h2>Помощник Klar</h2>
+                <p>
+                  {busy
+                    ? "Работаем над вашим запросом…"
+                    : "Поможет превратить вопрос в понятную задачу"}
+                </p>
+              </div>
+              <span className="conversation-tag">Диалог</span>
+            </div>
+            {!hasUserMessage ? (
+              <div className="conversation-welcome">
+                <div className="welcome-symbol">
+                  <InterfaceIcon name="spark" size={30} />
+                </div>
+                <h2>
+                  Сложный выбор.
+                  <br />
+                  Ясное решение.
+                </h2>
+                <p>
+                  Расскажите, что выбираете и что для вас важно.
+                  <br className="desktop-break" /> Вместе разложим всё по
+                  полочкам.
+                </p>
+                <div className="template-section">
+                  <span className="small-label">
+                    НАЧНИТЕ С ПРИМЕРА ИЛИ СВОЕГО ВОПРОСА
+                  </span>
+                  <div className="template-grid">
+                    {TEMPLATES.map((template) => (
+                      <button
+                        type="button"
+                        className="template-card"
+                        key={template.title}
+                        disabled={busy}
+                        onClick={() => {
+                          setDraft(template.text);
+                          textareaRef.current?.focus();
+                        }}
+                      >
+                        <InterfaceIcon name={template.icon} size={21} />
+                        <strong>{template.title}</strong>
+                        <span>{template.description}</span>
+                        <InterfaceIcon name="arrow" size={15} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              messageLog
+            )}
+            <footer className="composer-dock">
+              {hasUserMessage && quickRow}
+              {canAnalyze && !wide && (
+                <button
+                  type="button"
+                  className="review-shortcut"
+                  onClick={() => setTaskOpen(true)}
+                >
+                  Проверьте данные перед сравнением{" "}
+                  <InterfaceIcon name="arrow" size={16} />
+                </button>
+              )}
+              {composer}
+              <div className="composer-footnote">
+                <span>
+                  <span className="privacy-dot" /> Решение остаётся за вами
+                </span>
+                {finePointer && (
+                  <span>
+                    Enter <span aria-hidden="true">↵</span> отправить ·
+                    Shift+Enter — новая строка
+                  </span>
+                )}
+              </div>
+            </footer>
+          </section>
+          <aside className="task-panel" aria-label="Данные выбора">
+            {taskSummary}
+          </aside>
+        </div>
+      </main>
       {coachCard}
-    </div>
+    </ProductShell>
   );
 }

@@ -1,0 +1,114 @@
+{
+  "schema_version": "1.0",
+  "problem_id": "threshold-control",
+  "context": {
+    "title": "Контрольный пример: пороги смены лидера 1/3 и 2/3",
+    "domain": "test"
+  },
+  "alternatives": [
+    {
+      "alternative_id": "A",
+      "name": "A"
+    },
+    {
+      "alternative_id": "B",
+      "name": "B"
+    },
+    {
+      "alternative_id": "C",
+      "name": "C"
+    }
+  ],
+  "criteria": [
+    {
+      "criterion_id": "c1",
+      "name": "Критерий 1",
+      "direction": "max"
+    },
+    {
+      "criterion_id": "c2",
+      "name": "Критерий 2",
+      "direction": "max"
+    }
+  ],
+  "evaluations": [
+    {
+      "alternative_id": "A",
+      "criterion_id": "c1",
+      "value": {
+        "kind": "exact",
+        "value": 10
+      }
+    },
+    {
+      "alternative_id": "A",
+      "criterion_id": "c2",
+      "value": {
+        "kind": "exact",
+        "value": 2
+      }
+    },
+    {
+      "alternative_id": "B",
+      "criterion_id": "c1",
+      "value": {
+        "kind": "exact",
+        "value": 4
+      }
+    },
+    {
+      "alternative_id": "B",
+      "criterion_id": "c2",
+      "value": {
+        "kind": "exact",
+        "value": 8
+      }
+    },
+    {
+      "alternative_id": "C",
+      "criterion_id": "c1",
+      "value": {
+        "kind": "exact",
+        "value": 8
+      }
+    },
+    {
+      "alternative_id": "C",
+      "criterion_id": "c2",
+      "value": {
+        "kind": "exact",
+        "value": 6
+      }
+    }
+  ],
+  "weights": {
+    "normalization": "sum_to_one",
+    "items": [
+      {
+        "criterion_id": "c1",
+        "value": 0.5,
+        "lower": 0,
+        "upper": 1
+      },
+      {
+        "criterion_id": "c2",
+        "value": 0.5,
+        "lower": 0,
+        "upper": 1
+      }
+    ]
+  },
+  "constraints": [],
+  "method": {
+    "id": "wsm"
+  },
+  "uncertainty": {
+    "mode": "MF_WF",
+    "iterations": 1000,
+    "seed": 1
+  },
+  "metadata": {
+    "origin": "example",
+    "source": "контрольный пример с аналитическим решением"
+  }
+}

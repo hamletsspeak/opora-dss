@@ -1,12 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { serviceFromEnv } from '../server/llm/registry.js';
+import type { LlmService } from '../server/llm/service.js';
 
-export function getModel(): string {
-  return process.env.OPENAI_MODEL || 'gpt-4o-mini';
-}
+let llm: LlmService | null = null;
 
-export function getApiKey(): string | undefined {
-  const key = process.env.OPENAI_API_KEY;
-  return key && key.trim() ? key.trim() : undefined;
+/** Provider layer configured from the function environment (same variables as the server). */
+export function getLlm(): LlmService {
+  llm ??= serviceFromEnv(process.env);
+  return llm;
 }
 
 export function applyCors(res: VercelResponse): void {

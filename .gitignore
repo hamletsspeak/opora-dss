@@ -26,6 +26,8 @@ dist-ssr
 # secrets
 .env
 .env.local
+data/runs/
+runtime/
 
 __pycache__/
 *.pyc

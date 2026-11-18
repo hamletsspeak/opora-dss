@@ -1,5 +1,5 @@
-import OpenAI from 'openai';
 import type {
+  AgentLlmInfo,
   Alternative,
   ChatMessage,
   Criterion,
@@ -8,6 +8,10 @@ import type {
 import { emptySession } from '../shared/types.js';
 import { applyDemoSuppliers } from '../shared/demo.js';
 import { isAnalysisReady } from '../shared/mcdm.js';
+import { parseJsonReply } from './llm/draft.js';
+import { providerNotice } from './llm/formalize.js';
+import { LlmCallFailed, type LlmService, type ProviderSelection } from './llm/service.js';
+import { ERROR_TEXT } from './llm/types.js';
 
 const SYSTEM = `Ты агент Klar (СППР). Говори тепло и просто, на «вы». Извлекай структуру решения из русской речи.
 Отвечай ТОЛЬКО JSON:
@@ -224,18 +228,25 @@ function parsePastedAlternatives(
   return alts;
 }
 
-export async function runAgentTurn(opts: {
-  apiKey: string;
-  model: string;
-  messages: ChatMessage[];
-  session: SessionState;
-  userText: string;
-}): Promise<{
+export interface AgentTurn {
   reply: string;
   session: SessionState;
   offerDemo: boolean;
   canAnalyze: boolean;
-}> {
+  llm: AgentLlmInfo;
+}
+
+function rulesInfo(notice: string, error: AgentLlmInfo['error'] = null, provider: string | null = null): AgentLlmInfo {
+  return { mode: 'rules', provider, model: null, fallback_from: null, notice, error };
+}
+
+export async function runAgentTurn(opts: {
+  llm: LlmService | null;
+  selection?: ProviderSelection;
+  messages: ChatMessage[];
+  session: SessionState;
+  userText: string;
+}): Promise<AgentTurn> {
   // Fast path: explicit demo request
   if (/демо|использовать демо|готовые поставщик|подставь/i.test(opts.userText)) {
     const session = applyDemoSuppliers(opts.session);
@@ -244,10 +255,16 @@ export async function runAgentTurn(opts: {
       session,
       offerDemo: false,
       canAnalyze: isAnalysisReady(session),
+      llm: rulesInfo('Команда «демо» обработана без LLM.'),
     };
   }
 
-  const client = new OpenAI({ apiKey: opts.apiKey });
+  if (!opts.llm) {
+    return {
+      ...fallbackParse(opts.userText, opts.session || emptySession()),
+      llm: rulesInfo('LLM не настроена — использован встроенный разбор по правилам.'),
+    };
+  }
   const compact = {
     context: opts.session.context,
     criteria: opts.session.criteria,
@@ -259,11 +276,10 @@ export async function runAgentTurn(opts: {
   };
 
   try {
-    const completion = await client.chat.completions.create({
-      model: opts.model,
+    const call = await opts.llm.call('chat', {
       temperature: 0.1,
-      max_tokens: 700,
-      response_format: { type: 'json_object' },
+      maxTokens: 700,
+      json: true,
       messages: [
         { role: 'system', content: SYSTEM },
         { role: 'system', content: `Состояние: ${JSON.stringify(compact)}` },
@@ -284,10 +300,28 @@ export async function runAgentTurn(opts: {
           })),
         { role: 'user', content: opts.userText },
       ],
-    });
+    }, opts.selection);
 
-    const raw = completion.choices[0]?.message?.content ?? '{}';
-    const parsed = JSON.parse(raw) as {
+    const llmInfo: AgentLlmInfo = {
+      mode: 'llm',
+      provider: call.record.provider,
+      model: call.record.model_version ?? call.record.model,
+      fallback_from: call.record.fallback_from,
+      notice: providerNotice(call.record, call.attempts),
+      error: null,
+    };
+    const json = parseJsonReply(call.result.text);
+    if (!json.ok || !json.value || typeof json.value !== 'object') {
+      return {
+        ...fallbackParse(opts.userText, opts.session || emptySession()),
+        llm: rulesInfo(
+          `${call.record.provider} вернул некорректный JSON — использован встроенный разбор по правилам.`,
+          { code: 'bad_response', message: 'ответ не является JSON-объектом' },
+          call.record.provider,
+        ),
+      };
+    }
+    const parsed = json.value as {
       reply?: string;
       sessionPatch?: Partial<SessionState>;
       offerDemo?: boolean;
@@ -313,41 +347,18 @@ export async function runAgentTurn(opts: {
       session,
       offerDemo,
       canAnalyze,
+      llm: llmInfo,
     };
-  } catch {
-    return fallbackParse(opts.userText, opts.session || emptySession());
-  }
-}
-
-export async function explainResult(opts: {
-  apiKey: string;
-  model: string;
-  session: SessionState;
-  analysisJson: string;
-}): Promise<string> {
-  const client = new OpenAI({ apiKey: opts.apiKey });
-  try {
-    const completion = await client.chat.completions.create({
-      model: opts.model,
-      temperature: 0.3,
-      max_tokens: 280,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'Объясни результат MCDM на русском в 3–5 предложениях. Используй ТОЛЬКО числа из JSON. Не выдумывай. Упомяни робастность (winRate).',
-        },
-        {
-          role: 'user',
-          content: `Контекст: ${opts.session.context}\nКритерии: ${JSON.stringify(opts.session.criteria.map((c) => ({ name: c.name, importance: c.importance, direction: c.direction })))}\nРезультат: ${opts.analysisJson}`,
-        },
-      ],
-    });
-    return (
-      completion.choices[0]?.message?.content?.trim() ||
-      'См. ранжирование и доли побед ниже.'
-    );
-  } catch {
-    return 'Объяснение недоступно (ошибка LLM). Смотрите метрики ранжирования.';
+  } catch (e) {
+    if (!(e instanceof LlmCallFailed)) throw e;
+    const last = e.attempts.at(-1);
+    return {
+      ...fallbackParse(opts.userText, opts.session || emptySession()),
+      llm: rulesInfo(
+        `LLM недоступна (${last?.provider ?? '—'}: ${ERROR_TEXT[e.last.code]}) — использован встроенный разбор по правилам.`,
+        { code: e.last.code, message: e.last.message },
+        last?.provider ?? null,
+      ),
+    };
   }
 }

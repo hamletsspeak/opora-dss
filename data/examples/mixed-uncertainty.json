@@ -1,0 +1,296 @@
+{
+  "schema_version": "1.0",
+  "problem_id": "mixed-uncertainty",
+  "context": {
+    "title": "Выбор логистического оператора (иллюстрация всех видов неопределённости)",
+    "domain": "logistics"
+  },
+  "alternatives": [
+    {
+      "alternative_id": "op1",
+      "name": "Оператор 1"
+    },
+    {
+      "alternative_id": "op2",
+      "name": "Оператор 2"
+    },
+    {
+      "alternative_id": "op3",
+      "name": "Оператор 3"
+    },
+    {
+      "alternative_id": "op4",
+      "name": "Оператор 4"
+    }
+  ],
+  "criteria": [
+    {
+      "criterion_id": "cost",
+      "name": "Стоимость доставки",
+      "direction": "min",
+      "unit": "руб./заказ",
+      "range": {
+        "min": 0
+      }
+    },
+    {
+      "criterion_id": "otd",
+      "name": "Доля доставок в срок",
+      "direction": "max",
+      "unit": "%",
+      "range": {
+        "min": 0,
+        "max": 100
+      }
+    },
+    {
+      "criterion_id": "damage",
+      "name": "Повреждения",
+      "direction": "min",
+      "unit": "%",
+      "range": {
+        "min": 0,
+        "max": 100
+      },
+      "missing_policy": "worst_observed"
+    },
+    {
+      "criterion_id": "coverage",
+      "name": "Покрытие регионов",
+      "direction": "max",
+      "unit": "регионов",
+      "value_type": "integer"
+    }
+  ],
+  "evaluations": [
+    {
+      "alternative_id": "op1",
+      "criterion_id": "cost",
+      "value": {
+        "kind": "interval",
+        "lower": 180,
+        "upper": 220,
+        "distribution": "triangular",
+        "mode": 190
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op1",
+      "criterion_id": "otd",
+      "value": {
+        "kind": "exact",
+        "value": 94
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op1",
+      "criterion_id": "damage",
+      "value": {
+        "kind": "exact",
+        "value": 0.6
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op1",
+      "criterion_id": "coverage",
+      "value": {
+        "kind": "exact",
+        "value": 60
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op2",
+      "criterion_id": "cost",
+      "value": {
+        "kind": "exact",
+        "value": 205
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op2",
+      "criterion_id": "otd",
+      "value": {
+        "kind": "scenarios",
+        "scenarios": [
+          {
+            "label": "штатно",
+            "value": 97,
+            "probability": 0.7
+          },
+          {
+            "label": "пик сезона",
+            "value": 88,
+            "probability": 0.3
+          }
+        ]
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op2",
+      "criterion_id": "damage",
+      "value": {
+        "kind": "missing",
+        "reason": "оператор не раскрыл статистику"
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op2",
+      "criterion_id": "coverage",
+      "value": {
+        "kind": "exact",
+        "value": 75
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op3",
+      "criterion_id": "cost",
+      "value": {
+        "kind": "interval",
+        "lower": 150,
+        "upper": 200
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op3",
+      "criterion_id": "otd",
+      "value": {
+        "kind": "interval",
+        "lower": 85,
+        "upper": 93
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op3",
+      "criterion_id": "damage",
+      "value": {
+        "kind": "interval",
+        "lower": 0.8,
+        "upper": 1.5
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op3",
+      "criterion_id": "coverage",
+      "value": {
+        "kind": "exact",
+        "value": 40
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op4",
+      "criterion_id": "cost",
+      "value": {
+        "kind": "exact",
+        "value": 260
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op4",
+      "criterion_id": "otd",
+      "value": {
+        "kind": "exact",
+        "value": 98
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op4",
+      "criterion_id": "damage",
+      "value": {
+        "kind": "exact",
+        "value": 0.3
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "op4",
+      "criterion_id": "coverage",
+      "value": {
+        "kind": "exact",
+        "value": 80
+      },
+      "provenance": "synthetic"
+    }
+  ],
+  "weights": {
+    "normalization": "sum_to_one",
+    "items": [
+      {
+        "criterion_id": "cost",
+        "value": 0.4
+      },
+      {
+        "criterion_id": "otd",
+        "value": 0.3,
+        "lower": 0.2,
+        "upper": 0.45
+      },
+      {
+        "criterion_id": "damage",
+        "value": 0.15,
+        "lower": 0.05,
+        "upper": 0.25
+      },
+      {
+        "criterion_id": "coverage",
+        "value": 0.15,
+        "lower": 0.05,
+        "upper": 0.3
+      }
+    ],
+    "ordinal": [
+      {
+        "greater": "otd",
+        "lesser": "damage"
+      }
+    ]
+  },
+  "constraints": [
+    {
+      "constraint_id": "budget",
+      "type": "threshold",
+      "criterion_id": "cost",
+      "op": "<=",
+      "value": 250,
+      "description": "Бюджет — не более 250 руб./заказ"
+    }
+  ],
+  "method": {
+    "id": "topsis",
+    "params": {
+      "normalization": "minmax"
+    }
+  },
+  "uncertainty": {
+    "mode": "MU_WU",
+    "iterations": 3000,
+    "seed": 7,
+    "m": {
+      "default_interval_distribution": "uniform",
+      "point_rule": "expected_value"
+    },
+    "w": {
+      "sampler": "polytope_rejection"
+    }
+  },
+  "metadata": {
+    "origin": "example",
+    "source": "синтетический пример",
+    "notes": [
+      "Вес стоимости фиксирован (0.4) и не меняется в режиме W uncertain."
+    ]
+  }
+}

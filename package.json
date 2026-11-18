@@ -8,22 +8,23 @@
     "dev:web": "vite",
     "dev:api": "tsx watch server/index.ts",
     "build": "tsc -b && vite build",
-    "start": "NODE_ENV=production tsx server/index.ts",
+    "start": "tsx server/index.ts",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test": "tsx --test \"tests/**/*.test.ts\"",
     "test:mcdm": "tsx shared/mcdm.selftest.ts",
     "test:mcdm:py": "python3 python/selftest.py"
   },
   "dependencies": {
+    "@vercel/node": "^17.0.0",
     "concurrently": "^10.0.5",
     "cors": "^2.8.6",
     "dotenv": "^18.0.5",
     "express": "^5.2.1",
-    "openai": "^7.25.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "zod": "^4.6.5",
-    "@vercel/node": "^17.0.0"
+    "tsx": "^4.23.15",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
@@ -33,7 +34,6 @@
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "oxlint": "^1.81.0",
-    "tsx": "^4.23.15",
     "typescript": "~6.0.2",
     "vite": "^8.3.0"
   }

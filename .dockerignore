@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.env
+.env.*
+!.env.example
+results
+data/runs
+runtime
+*.log
+.vscode
+.idea
+__pycache__
+*.tsbuildinfo

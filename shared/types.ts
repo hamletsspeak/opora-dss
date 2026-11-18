@@ -71,7 +71,24 @@ export interface McdmResult {
     vikor: RankItem[];
   };
   agreement: MethodAgreement;
-  mcdmParams: { samples: number; seed: number };
+  mcdmParams: { samples: number; seed: number; mode?: string; engine?: string };
+  /** v1 engine extras (absent in v0 responses) */
+  mode?: { id: string; number: number; label: string; m: string; w: string };
+  robustness?: string[];
+  sensitivity?: {
+    summary: string[];
+    critical: {
+      type: 'weight' | 'evaluation';
+      label: string;
+      base_value: number;
+      flip_at: number | null;
+      abs_delta: number | null;
+      relative_delta: number | null;
+      new_leader_names: string[];
+    }[];
+    statements: Record<string, string[]>;
+  };
+  conversionLog?: string[];
 }
 
 /** Audit trail record for thesis / export */
@@ -90,6 +107,16 @@ export interface AuditRecord {
   samples?: number;
 }
 
+/** Which engine produced a chat reply. `rules` = built-in parser, shown to the user explicitly. */
+export interface AgentLlmInfo {
+  mode: 'llm' | 'rules';
+  provider: string | null;
+  model: string | null;
+  fallback_from: string | null;
+  notice: string;
+  error: { code: string; message: string } | null;
+}
+
 export interface AgentResponse {
   reply: string;
   session: SessionState;
@@ -97,6 +124,7 @@ export interface AgentResponse {
   canAnalyze: boolean;
   analysis?: McdmResult;
   explanation?: string;
+  llm?: AgentLlmInfo;
 }
 
 export function emptySession(): SessionState {

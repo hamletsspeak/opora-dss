@@ -1,4 +1,4 @@
-import type { MethodAgreement, RankItem } from '../shared/types';
+import type { McdmResult, MethodAgreement, RankItem } from "../shared/types";
 
 /** Flexible multi-method shapes from backend (or future packs). */
 export type MethodSlice = {
@@ -13,6 +13,7 @@ export type FlexibleAnalysis = {
   ranking: RankItem[];
   samples: number;
   sensitivityNote: string;
+  sensitivity?: McdmResult["sensitivity"];
   weightMeans: Record<string, number>;
   /** Backend object { topsis, wsm, vikor } or normalized MethodSlice[] */
   methods?:
@@ -31,10 +32,10 @@ export type FlexibleAnalysis = {
 };
 
 function asRankItem(raw: unknown): RankItem | null {
-  if (!raw || typeof raw !== 'object') return null;
+  if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
-  const alternativeId = String(o.alternativeId ?? o.id ?? '');
-  const name = String(o.name ?? '');
+  const alternativeId = String(o.alternativeId ?? o.id ?? "");
+  const name = String(o.name ?? "");
   if (!alternativeId && !name) return null;
   const winRate = Number(o.winRate ?? o.pBest ?? 0);
   return {
@@ -54,7 +55,7 @@ function asRankList(raw: unknown): RankItem[] {
 }
 
 function asMethodSlice(raw: unknown, index: number): MethodSlice | null {
-  if (!raw || typeof raw !== 'object') return null;
+  if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   const ranking = asRankList(o.ranking ?? o.ranks ?? o.items);
   if (!ranking.length) return null;
@@ -76,7 +77,7 @@ function asMethodSlice(raw: unknown, index: number): MethodSlice | null {
 
 /** Normalize analyze payload; never throw on unknown multi-method shape. */
 export function normalizeAnalysis(raw: unknown): FlexibleAnalysis | null {
-  if (!raw || typeof raw !== 'object') return null;
+  if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   const ranking = asRankList(o.ranking);
   if (!ranking.length) return null;
@@ -85,14 +86,14 @@ export function normalizeAnalysis(raw: unknown): FlexibleAnalysis | null {
   const base: FlexibleAnalysis = {
     ranking,
     samples: Number.isFinite(samples) ? samples : 0,
-    sensitivityNote: String(o.sensitivityNote ?? ''),
+    sensitivityNote: String(o.sensitivityNote ?? ""),
     weightMeans:
-      o.weightMeans && typeof o.weightMeans === 'object'
+      o.weightMeans && typeof o.weightMeans === "object"
         ? (o.weightMeans as Record<string, number>)
         : {},
   };
 
-  if (o.mcdmParams && typeof o.mcdmParams === 'object') {
+  if (o.mcdmParams && typeof o.mcdmParams === "object") {
     const p = o.mcdmParams as Record<string, unknown>;
     base.mcdmParams = {
       ...p,
@@ -103,9 +104,17 @@ export function normalizeAnalysis(raw: unknown): FlexibleAnalysis | null {
     base.mcdmParams = { samples: base.samples, seed: 42 };
   }
 
-  if (o.agreement && typeof o.agreement === 'object') {
-    base.agreement = o.agreement as FlexibleAnalysis['agreement'];
+  if (o.agreement && typeof o.agreement === "object") {
+    base.agreement = o.agreement as FlexibleAnalysis["agreement"];
   }
+  if (
+    o.sensitivity &&
+    typeof o.sensitivity === "object" &&
+    Array.isArray(
+      (o.sensitivity as NonNullable<McdmResult["sensitivity"]>).critical,
+    )
+  )
+    base.sensitivity = o.sensitivity as McdmResult["sensitivity"];
 
   const bag = o.methods ?? o.multiMethod ?? o.methodRankings;
   if (Array.isArray(bag)) {
@@ -113,7 +122,7 @@ export function normalizeAnalysis(raw: unknown): FlexibleAnalysis | null {
       .map(asMethodSlice)
       .filter((m): m is MethodSlice => m != null);
     if (methods.length) base.methods = methods;
-  } else if (bag && typeof bag === 'object') {
+  } else if (bag && typeof bag === "object") {
     const m = bag as Record<string, unknown>;
     const topsis = asRankList(m.topsis);
     const wsm = asRankList(m.wsm);
@@ -134,13 +143,11 @@ export function extractMethodSlices(analysis: FlexibleAnalysis): MethodSlice[] {
   const m = analysis.methods;
   if (!m) return [];
   if (Array.isArray(m)) {
-    return m
-      .map(asMethodSlice)
-      .filter((x): x is MethodSlice => x != null);
+    return m.map(asMethodSlice).filter((x): x is MethodSlice => x != null);
   }
   const out: MethodSlice[] = [];
-  if (m.topsis?.length) out.push({ method: 'TOPSIS', ranking: m.topsis });
-  if (m.wsm?.length) out.push({ method: 'WSM', ranking: m.wsm });
-  if (m.vikor?.length) out.push({ method: 'VIKOR', ranking: m.vikor });
+  if (m.topsis?.length) out.push({ method: "TOPSIS", ranking: m.topsis });
+  if (m.wsm?.length) out.push({ method: "WSM", ranking: m.wsm });
+  if (m.vikor?.length) out.push({ method: "VIKOR", ranking: m.vikor });
   return out;
 }

@@ -22,6 +22,8 @@
   "include": [
     "server",
     "shared",
-    "api"
+    "api",
+    "tests",
+    "scripts"
   ]
 }

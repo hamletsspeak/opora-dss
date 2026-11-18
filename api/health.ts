@@ -1,18 +1,17 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { getLlm, handleOptions } from './_lib.js';
 
 export const config = { maxDuration: 10 };
 
 export default function handler(req: VercelRequest, res: VercelResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') {
-    res.status(204).end();
-    return;
-  }
+  if (handleOptions(req, res)) return;
+  const llm = getLlm();
+  const def = llm.registry.get(llm.registry.defaultId);
   res.status(200).json({
     ok: true,
-    model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
-    hasKey: Boolean(process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.trim()),
+    deployment: 'vercel-legacy-demo',
+    llm: { default: llm.registry.defaultId, default_configured: def?.info.configured ?? false, fallback: llm.registry.fallback },
+    model: def?.info.model ?? null,
+    hasKey: def?.info.configured ?? false,
   });
 }

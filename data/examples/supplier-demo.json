@@ -1,0 +1,292 @@
+{
+  "schema_version": "1.0",
+  "problem_id": "supplier-demo",
+  "context": {
+    "title": "Выбор поставщика (демонстрационный набор)",
+    "goal": "Выбрать поставщика комплектующих при неточных ценах и браке",
+    "domain": "procurement"
+  },
+  "alternatives": [
+    {
+      "alternative_id": "alpha",
+      "name": "ООО «АльфаСнаб»",
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "beta",
+      "name": "ИП Бета Логистик",
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "gamma",
+      "name": "Гамма Трейд",
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "delta",
+      "name": "Дельта Партнёр",
+      "provenance": "synthetic"
+    }
+  ],
+  "criteria": [
+    {
+      "criterion_id": "price",
+      "name": "Цена",
+      "direction": "min",
+      "value_type": "currency",
+      "unit": "руб./шт.",
+      "range": {
+        "min": 0
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "criterion_id": "lead_time",
+      "name": "Срок поставки",
+      "direction": "min",
+      "value_type": "duration",
+      "unit": "дн.",
+      "range": {
+        "min": 0
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "criterion_id": "defect_rate",
+      "name": "Процент брака",
+      "direction": "min",
+      "value_type": "percent",
+      "unit": "%",
+      "range": {
+        "min": 0,
+        "max": 100
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "criterion_id": "min_lot",
+      "name": "Минимальная партия",
+      "direction": "min",
+      "value_type": "integer",
+      "unit": "шт.",
+      "range": {
+        "min": 0
+      },
+      "provenance": "synthetic"
+    }
+  ],
+  "evaluations": [
+    {
+      "alternative_id": "alpha",
+      "criterion_id": "price",
+      "value": {
+        "kind": "interval",
+        "lower": 470,
+        "upper": 490
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "alpha",
+      "criterion_id": "lead_time",
+      "value": {
+        "kind": "exact",
+        "value": 5
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "alpha",
+      "criterion_id": "defect_rate",
+      "value": {
+        "kind": "interval",
+        "lower": 1.2,
+        "upper": 1.8
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "alpha",
+      "criterion_id": "min_lot",
+      "value": {
+        "kind": "exact",
+        "value": 100
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "beta",
+      "criterion_id": "price",
+      "value": {
+        "kind": "interval",
+        "lower": 430,
+        "upper": 460
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "beta",
+      "criterion_id": "lead_time",
+      "value": {
+        "kind": "interval",
+        "lower": 7,
+        "upper": 10
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "beta",
+      "criterion_id": "defect_rate",
+      "value": {
+        "kind": "exact",
+        "value": 0.8
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "beta",
+      "criterion_id": "min_lot",
+      "value": {
+        "kind": "exact",
+        "value": 200
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "gamma",
+      "criterion_id": "price",
+      "value": {
+        "kind": "exact",
+        "value": 520
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "gamma",
+      "criterion_id": "lead_time",
+      "value": {
+        "kind": "exact",
+        "value": 3
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "gamma",
+      "criterion_id": "defect_rate",
+      "value": {
+        "kind": "interval",
+        "lower": 2,
+        "upper": 2.5
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "gamma",
+      "criterion_id": "min_lot",
+      "value": {
+        "kind": "exact",
+        "value": 50
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "delta",
+      "criterion_id": "price",
+      "value": {
+        "kind": "interval",
+        "lower": 450,
+        "upper": 480
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "delta",
+      "criterion_id": "lead_time",
+      "value": {
+        "kind": "exact",
+        "value": 6
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "delta",
+      "criterion_id": "defect_rate",
+      "value": {
+        "kind": "interval",
+        "lower": 1,
+        "upper": 1.4
+      },
+      "provenance": "synthetic"
+    },
+    {
+      "alternative_id": "delta",
+      "criterion_id": "min_lot",
+      "value": {
+        "kind": "interval",
+        "lower": 80,
+        "upper": 120
+      },
+      "provenance": "synthetic"
+    }
+  ],
+  "weights": {
+    "normalization": "sum_to_one",
+    "items": [
+      {
+        "criterion_id": "price",
+        "value": 0.35,
+        "lower": 0.25,
+        "upper": 0.45,
+        "provenance": "synthetic"
+      },
+      {
+        "criterion_id": "lead_time",
+        "value": 0.3,
+        "lower": 0.2,
+        "upper": 0.4,
+        "provenance": "synthetic"
+      },
+      {
+        "criterion_id": "defect_rate",
+        "value": 0.2,
+        "lower": 0.1,
+        "upper": 0.3,
+        "provenance": "synthetic"
+      },
+      {
+        "criterion_id": "min_lot",
+        "value": 0.15,
+        "lower": 0.05,
+        "upper": 0.25,
+        "provenance": "synthetic"
+      }
+    ]
+  },
+  "constraints": [],
+  "method": {
+    "id": "topsis",
+    "params": {
+      "normalization": "minmax"
+    }
+  },
+  "uncertainty": {
+    "mode": "MU_WU",
+    "iterations": 2000,
+    "seed": 42,
+    "m": {
+      "default_interval_distribution": "uniform",
+      "point_rule": "expected_value"
+    },
+    "w": {
+      "sampler": "polytope_rejection"
+    }
+  },
+  "metadata": {
+    "origin": "example",
+    "source": "Демонстрационный набор Klar (синтетические данные)",
+    "author": "opora-dss",
+    "notes": [
+      "Веса и интервалы весов — иллюстративные, не получены от реального ЛПР."
+    ]
+  }
+}

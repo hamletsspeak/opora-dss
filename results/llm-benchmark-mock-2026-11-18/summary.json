@@ -1,0 +1,94 @@
+[
+  {
+    "provider": "mock",
+    "cases": 36,
+    "failures": 0,
+    "strict_json_rate": 1,
+    "draft_schema_rate": 1,
+    "problem_schema_rate": 1,
+    "semantic_valid_rate": 1,
+    "run_valid_rate": 0.5555555555555556,
+    "run_validity_accuracy": 0.5833333333333334,
+    "exact_fact_match_rate": 0.1388888888888889,
+    "micro": {
+      "tp": 280,
+      "fp": 8,
+      "fn": 224,
+      "precision": 0.9722222222222222,
+      "recall": 0.5555555555555556,
+      "f1": 0.7070707070707071
+    },
+    "by_group": {
+      "alternatives": {
+        "tp": 44,
+        "fp": 2,
+        "fn": 28,
+        "precision": 0.9565217391304348,
+        "recall": 0.6111111111111112,
+        "f1": 0.7457627118644068
+      },
+      "criteria": {
+        "tp": 48,
+        "fp": 0,
+        "fn": 24,
+        "precision": 1,
+        "recall": 0.6666666666666666,
+        "f1": 0.8
+      },
+      "directions": {
+        "tp": 46,
+        "fp": 2,
+        "fn": 26,
+        "precision": 0.9583333333333334,
+        "recall": 0.6388888888888888,
+        "f1": 0.7666666666666667
+      },
+      "units": {
+        "tp": 36,
+        "fp": 0,
+        "fn": 36,
+        "precision": 1,
+        "recall": 0.5,
+        "f1": 0.6666666666666666
+      },
+      "evaluations": {
+        "tp": 86,
+        "fp": 4,
+        "fn": 55,
+        "precision": 0.9555555555555556,
+        "recall": 0.6099290780141844,
+        "f1": 0.7445887445887446
+      },
+      "weights": {
+        "tp": 16,
+        "fp": 0,
+        "fn": 50,
+        "precision": 1,
+        "recall": 0.24242424242424243,
+        "f1": 0.3902439024390244
+      },
+      "weight_order": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 1,
+        "precision": 1,
+        "recall": 0.6666666666666666,
+        "f1": 0.8
+      },
+      "constraints": {
+        "tp": 2,
+        "fp": 0,
+        "fn": 4,
+        "precision": 1,
+        "recall": 0.3333333333333333,
+        "f1": 0.5
+      }
+    },
+    "unsupported_fact_count": 6,
+    "cases_with_unsupported_facts": 2,
+    "facts_unscorable_cases": 0,
+    "mean_elapsed_ms": 1.4022583333333343,
+    "costs": [],
+    "calls_with_unknown_cost": 36
+  }
+]

@@ -5,13 +5,7 @@ import {
   type SessionState,
 } from '../shared/types.js';
 import { runAgentTurn } from '../server/agent.js';
-import {
-  getApiKey,
-  getModel,
-  handleOptions,
-  methodNotAllowed,
-  parseBody,
-} from './_lib.js';
+import { getLlm, handleOptions, methodNotAllowed, parseBody } from './_lib.js';
 
 export const config = { maxDuration: 60 };
 
@@ -22,28 +16,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
   try {
-    const key = getApiKey();
-    if (!key) {
-      res.status(500).json({ error: 'OPENAI_API_KEY не задан на сервере' });
-      return;
-    }
     const body = parseBody<{
       message?: string;
       messages?: ChatMessage[];
       session?: SessionState;
     }>(req);
-    const userText = String(body.message ?? '').trim();
+    const userText = String(body.message ?? '').trim().slice(0, 8000);
     if (!userText) {
       res.status(400).json({ error: 'Пустое сообщение' });
       return;
     }
-    const messages = (body.messages ?? []) as ChatMessage[];
-    const session = body.session || emptySession();
     const turn = await runAgentTurn({
-      apiKey: key,
-      model: getModel(),
-      messages,
-      session,
+      llm: getLlm(),
+      messages: Array.isArray(body.messages) ? body.messages : [],
+      session: body.session || emptySession(),
       userText,
     });
     res.status(200).json(turn);

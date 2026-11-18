@@ -1,0 +1,13 @@
+{
+  "sku": "sku",
+  "date": "date",
+  "units_sold": "units_sold",
+  "revenue": "revenue",
+  "price": "price",
+  "unit_cost": "unit_cost",
+  "stock": "stock",
+  "ad_spend": "ad_spend",
+  "returns_units": "returns_units",
+  "lead_time_days": "lead_time_days",
+  "storage_cost": "storage_cost"
+}

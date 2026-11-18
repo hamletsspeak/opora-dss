@@ -3,18 +3,12 @@ import type { ChatMessage, SessionState } from '../shared/types.js';
 import {
   DEFAULT_MCDM_SAMPLES,
   DEFAULT_MCDM_SEED,
-  runRobustMcdm,
   isAnalysisReady,
+  runRobustMcdmDetailed,
 } from '../shared/mcdm.js';
 import { buildAuditRecord, globalAuditStore } from '../shared/audit.js';
-import { explainResult } from '../server/agent.js';
-import {
-  getApiKey,
-  getModel,
-  handleOptions,
-  methodNotAllowed,
-  parseBody,
-} from './_lib.js';
+import { explainRun } from '../server/llm/explain.js';
+import { getLlm, handleOptions, methodNotAllowed, parseBody } from './_lib.js';
 
 export const config = { maxDuration: 60 };
 
@@ -41,60 +35,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const samples =
       typeof body.samples === 'number' && body.samples > 0
-        ? Math.min(10_000, Math.floor(body.samples))
+        ? Math.min(20_000, Math.floor(body.samples))
         : DEFAULT_MCDM_SAMPLES;
     const seed =
       typeof body.seed === 'number' && Number.isFinite(body.seed)
-        ? Math.floor(body.seed)
+        ? Math.floor(body.seed) >>> 0
         : DEFAULT_MCDM_SEED;
 
-    const analysis = runRobustMcdm(session, samples, seed);
-    let explanation = analysis.sensitivityNote;
-    const key = getApiKey();
-    if (key) {
-      try {
-        explanation = await explainResult({
-          apiKey: key,
-          model: getModel(),
-          session,
-          analysisJson: JSON.stringify({
-            ranking: analysis.ranking.map((r) => ({
-              name: r.name,
-              winRate: Number(r.winRate.toFixed(3)),
-              expectedScore: Number(r.expectedScore.toFixed(3)),
-              meanRank: Number(r.meanRank.toFixed(2)),
-            })),
-            methods: {
-              topsisLeader: analysis.methods.topsis[0]?.name,
-              wsmLeader: analysis.methods.wsm[0]?.name,
-              vikorLeader: analysis.methods.vikor[0]?.name,
-            },
-            agreement: {
-              leaderMatchRate: Number(
-                analysis.agreement.leaderMatchRate.toFixed(3),
-              ),
-              pairwise: analysis.agreement.pairwiseLeaderMatch,
-            },
-            sensitivityNote: analysis.sensitivityNote,
-            weightMeans: analysis.weightMeans,
-            samples: analysis.samples,
-            mcdmParams: analysis.mcdmParams,
-          }),
-        });
-      } catch {
-        /* keep sensitivityNote */
-      }
-    }
-
+    const { analysis, run, sensitivity } = runRobustMcdmDetailed(session, samples, seed);
+    const explanation = await explainRun(getLlm(), run, sensitivity);
     const audit = buildAuditRecord({
       session,
       analysis,
-      explanation,
+      explanation: explanation.text,
       messages: body.messages,
     });
     globalAuditStore.put(audit);
 
-    res.status(200).json({ analysis, explanation, audit });
+    res.status(200).json({
+      analysis,
+      explanation: explanation.text,
+      explanation_meta: {
+        source: explanation.source,
+        provider_notice: explanation.provider_notice,
+        rejected: explanation.rejected,
+        provider: explanation.llm?.provider ?? null,
+        model: explanation.llm?.model_version ?? explanation.llm?.model ?? null,
+      },
+      audit,
+    });
   } catch {
     res.status(500).json({ error: 'Ошибка анализа' });
   }

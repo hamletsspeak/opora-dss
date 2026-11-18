@@ -1,5 +1,9 @@
 # Klar — интеллектуальная СППР (MVP)
 
+Рабочая область **Лаборатория** доступна на `/lab`: постановки `DecisionProblem`, четыре режима M/W, чувствительность, пакетные эксперименты, e-commerce backtest и сравнение LLM. Запуск: `npm ci`, скопировать `.env.example` в `.env`, `npm run build`, `npm start`, затем открыть `http://localhost:8787/lab`. Docker: `docker compose up --build -d app` после подготовки `.env`.
+
+Актуальные инструкции: [Лаборатория](docs/laboratory.md), [развёртывание и Docker](docs/deployment.md), [e-commerce](docs/ecommerce.md), [LLM benchmark](docs/llm-benchmark.md). Ниже сохранено описание исходного MVP; полный API v1 и `/lab` запускаются через Express, прежний Vercel-деплой предоставляет legacy API.
+
 Документ для научного руководителя. Описание архитектуры и соответствия теме ВКР; инструкция по запуску — в конце.
 
 **Продукт:** Klar — мобильный веб-MVP системы поддержки принятия решений.  

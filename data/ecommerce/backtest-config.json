@@ -1,0 +1,17 @@
+{
+  "period": "month",
+  "backtest": {
+    "sku": "SYNTH-1",
+    "first_test": "2023-01",
+    "last_test": "2024-10",
+    "train_periods": 24,
+    "test_periods": 3,
+    "step": 3,
+    "window": 12,
+    "iterations": 500,
+    "seed": 42
+  },
+  "problem": {
+    "assumptions": { "bootstrap": 1000 }
+  }
+}
